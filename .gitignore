@@ -1,0 +1,12 @@
+# --- python related ---
+.*
+!.gitignore
+__pycache__/
+
+*.py[cod]
+*$py.class 
+
+MyPythonClasses/
+devices/drafts/
+SpyderFiles/spyder_config_backup/
+devices/test.py

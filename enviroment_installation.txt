@@ -1,0 +1,32 @@
+## test if conda installed via bash terminal:
+conda --version
+>> conda 25.3.1
+
+## create enviroment Andrei_lab with old Python vertion for stability:
+conda create -n Andrei_lab python=3.10
+>> C:\Users\TheMa\miniconda3\envs\Andrei_lab
+
+## introduce bash to conda
+conda init bash
+## re-open the terminal
+
+## list available envs 
+conda info --envs
+
+## activate Andrei_lab
+conda activate Andrei_lab
+
+## install PyVisa
+pip install pyserial pyvisa pyvisa-py
+
+## test connected COM ports 
+python -m serial.tools.list_ports
+>> COM3
+>> 1 ports found
+
+
+## to make the venv avalible for Spyder 
+conda install spyder-kernels=3.0
+
+##
+conda install pandas

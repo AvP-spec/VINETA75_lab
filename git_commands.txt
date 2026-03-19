@@ -1,0 +1,29 @@
+##### Git configuration ################
+
+## Windoes lokal account! for isolation privat keys and correct identification
+
+## user information
+git config --global user.name andrei_uni
+git config --global user.email avpipa@gmail.com
+
+## for windows true, for linux input
+git config --global core.autocrlf true
+## set name "main" (old version is "master")
+git config --global init.defaultBranch main
+## use VS code as editor
+git config --global core.editor "code --wait"
+
+## make file
+.gitignore
+------------------
+__pycache__/
+.*
+!.gitignore
+------------------
+
+##### first commit ##############
+git init  ## take the folder ander control of git
+git add . ## add whole directory
+git status ## see staged files
+git reset ## cancel git add .
+git commit -m "Initial commit"
