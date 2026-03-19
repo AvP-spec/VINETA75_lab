@@ -1,3 +1,6 @@
+
+
+###########################################################
 ##### Git configuration ################
 
 ## Windoes lokal account! for isolation privat keys and correct identification
@@ -12,6 +15,11 @@ git config --global core.autocrlf true
 git config --global init.defaultBranch main
 ## use VS code as editor
 git config --global core.editor "code --wait"
+git config --global merge.tool vscode
+git config --global difftool.vscode.cmd "code --wait --diff \$LOCAL \$REMOTE"
+git config --global merge.tool vscode
+git config --global mergetool.vscode.cmd "code --wait --merge \$REMOTE \$LOCAL \$BASE \$MERGED"
+
 
 ## make file
 .gitignore
