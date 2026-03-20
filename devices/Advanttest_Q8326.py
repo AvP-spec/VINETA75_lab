@@ -1,4 +1,5 @@
 from base_device import BaseDevice
+import pandas as pd
 import pyvisa
 import os
 import time
@@ -44,22 +45,23 @@ class Q8326(BaseDevice):
         self.hwid = "USB0::0x03EB::0x2065::GPIB_06_4423030363035131A1C0::INSTR"
         self.name = self.DEVICE_DIKT[self.hwid]
         self.port = self.hwid
-        self.time_sleep = 0.1 
+        self.time_sleep = 0.05 # might work with 0.01
 
 
     def after_connect(self):
         print("Advantest_Q8326 after_connect()")
         self.connection.clear()
         time.sleep(self.time_sleep)
-        self.send_command("M1")
+        self.send_command("M1")      #"Sample Mode HOLD",
         self.flush_buffer_GPIB()
-        self.send_command("F1")
-        self.send_command("W0")
-        self.send_command("RF0")
-        self.send_command("CA0")
-        self.send_command("B1")
-        self.send_command("A1")
-        self.send_command("RE0")
+        self.send_command("F1")    # function LASER for measurement of a laser wavelength/frequency
+        self.send_command("W0")    # "set wavelength range: 480-1000 nm",
+        self.send_command("RF0")   # drift off
+        self.send_command("CA0")   # set altitude 0m - sea level
+        self.send_command("B1")    # set Beap when error
+        self.send_command("A1")    # average on
+        self.send_command("RE0")   # "RSOLUTION MAX", # 0.0001 nm / 10 MHz,
+        self.average = "ON"
 
 
         return self
@@ -159,10 +161,50 @@ class Q8326(BaseDevice):
 
         return self
     
+
+    def average_on(self):
+        self.send_command("A1")
+        self.send_command("RE0")
+        self.average = "ON"
+        return self
+    
+    def average_off(self):
+        self.send_command("A0")
+        self.send_command("RE1")
+        self.average = "OFF"
+        return self
+
     def read(self, silent=True):
+        self.flush_buffer_GPIB(silent=silent) # takes 0.6 sec
+        start_time = time.perf_counter()
         value = self.connection.query("E")
-        self.flush_buffer_GPIB(silent=silent)
-        return value
+        end_time = time.perf_counter()
+        
+        return {
+            "time_s": start_time,
+            "wavelength": value,
+            "duration_s": end_time - start_time
+              } 
+    
+    def wlm_monitor(self, n_measurements=1, sleep=None, silent=False):
+        if sleep is None:
+            sleep= self.time_sleep
+        
+        results = []
+        for i in range(n_measurements):
+            if not silent:
+                print(f"wlm_monitor measurement No.{i}")
+            results.append(self.read())
+            time.sleep(sleep)
+        ## for fast version
+        # results = [self.read() for i in range(n_measurements)]
+        df = pd.DataFrame(results)
+        if not df.empty:
+            t0 = df['time_s'].min()
+            df['time_s'] = df['time_s'] - t0
+            df.set_index('time_s', inplace=True)
+
+        return df
 
 
     def disconnect(self):
@@ -184,40 +226,28 @@ if __name__ == "__main__":
     print(wlm.connection.query("E"))
     print(wlm.connection.stb)
     
-    print("wlm.send_command('E')")
-    wlm.send_command("E")
-    
-    print("wlm.read()")
-    print(wlm.read())
+    print("----- averaged measurements -----")
+    print(f"{wlm.average=}")
+    print(wlm.wlm_monitor(5))
 
-    # print("wlm.connection.read()")
-    # print(wlm.connection.read())
-    # print(wlm.connection.query("E"))
-    print("chek settings")
+    print("----- fast measurements -----")
+    wlm.average_off()
+    print(f"{wlm.average=}")
+    print(wlm.wlm_monitor(5))
+
+    time1 = time.perf_counter()
+    print(wlm.read())
+    time2 = time.perf_counter()
+    print(time2 - time1)
+    
+    print("----- averaged measurements -----")
+    wlm.average_on()
     time1 = time.perf_counter()
     print(wlm.read())
     time2 = time.perf_counter()
     print(time2 - time1)
 
-    print(wlm.read())
-    time3 = time.perf_counter()
-    print(time3 - time2)
 
-    print(wlm.read())
-    time4 = time.perf_counter()
-    print(time4 - time3)
-
-    print(wlm.read())
-    time5 = time.perf_counter()
-    print(time5 - time4)
-
-
-    print(wlm.read())
-    time6 = time.perf_counter()
-    print(time6 - time5)
-    print("average:", (time6 - time1)/5, "sec" )
-
-   
     wlm.disconnect()
    
 

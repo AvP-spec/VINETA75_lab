@@ -9,6 +9,7 @@ import pyvisa
 import time
 import os
 import math
+import pandas as pd
 
 class PilotPZ(BaseDevice):
     CONNECTION_SETTINGS = {
@@ -28,7 +29,7 @@ class PilotPZ(BaseDevice):
 
     def __init__(self):
         super().__init__()
-        self.time_sleep = 0.1 # deley after read/write command to the port
+        self.time_sleep = 0.01 # deley after read/write command to the port
         self.current = None
         self.temperature = None
         self.piezo = None
@@ -91,7 +92,7 @@ class PilotPZ(BaseDevice):
     def _set_value(self, parameter_dickt, value:float=None, unit:str=None, silent=True):
         '''
         internal function, parameter_dickt should be defined, see: 
-        self.current, self.temperature, self.piezo 
+        self.current, self.temperature, self.piezo in PilotPZ500 class
         '''
         ## unpack dickt
         name = parameter_dickt["name"]
@@ -121,7 +122,6 @@ class PilotPZ(BaseDevice):
         return self
     
 
-
     ###### read functions ######
     def read_current(self, silent=True):
         return self.read_value(":Laser:CURRent?", silent=silent)
@@ -149,6 +149,39 @@ class PilotPZ(BaseDevice):
     
     def read_status(self, silent=True):
         return self.read_value(":Laser:STATus?", silent=silent)
+    
+    def read_laser(self):
+        start_time = time.perf_counter()
+        current= self.read_current()
+        temperature= self.read_temperature()
+        piezo = self.read_piezo()
+        end_time = time.perf_counter()
+        return {
+            "time_s": start_time,
+            "duration": end_time - start_time,
+            "current_A": current,
+            "temperature_C": temperature,
+            "piezo_off_set_V": piezo
+        }
+    
+    def laser_monitor(self, n_measurements, sleep=None, silent=False):
+        if sleep is None:
+            sleep= self.time_sleep
+
+        results = []
+        for i in range(n_measurements):
+            if not silent:
+                print(f"laser_monitor measurement No.{i}")
+                results.append(self.read_laser())
+                time.sleep(sleep)
+
+        df = pd.DataFrame(results)
+        if not df.empty:
+            t0 = df['time_s'].min()
+            df['time_s'] = df['time_s'] - t0
+            df.set_index('time_s', inplace=True)
+
+        return df      
 
     ####### set functions #######
     def set_defoults(self):
@@ -203,6 +236,8 @@ class PilotPZ500(PilotPZ):
                        ":TEC:TEMPerature 16", 
                        ":Piezo:OFFSet 2",
                        ]
+    
+
     def __init__(self):
         super().__init__()
         self.hwid = "VID:PID:SER = 0403:6001:6"
@@ -225,7 +260,6 @@ class PilotPZ500(PilotPZ):
             "cmd": ":Piezo:OFFSet",
             "name": f"{self.BLUE}piezo offset{self.RESET}"
         }
-        
 
 
 if __name__ == "__main__":
@@ -316,14 +350,20 @@ if __name__ == "__main__":
         print(f"=== {laser.GREEN} test_switch_functions() ended {laser.RESET}===")
         print()
 
-    test_switch_functions(master_diode)
+    # test_switch_functions(master_diode)
 
     def test(laser:object):
         print(laser.connection.timeout)
         laser.connection.timeout = 5_000
         print(laser.connection.timeout)
-        
-
     #test(master_diode)
+
+    def test_laser_monitor(laser:object):
+        laser.switch_on()
+        results = laser.laser_monitor(n_measurements=5)
+        laser.switch_off()
+        print("\n", results)
+
+    test_laser_monitor(master_diode)
 
     master_diode.disconnect()
