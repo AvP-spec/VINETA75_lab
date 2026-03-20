@@ -1,4 +1,7 @@
-
+git status -s # short status
+git add .     # add evrething, or put filename instead of dot
+git log --oneline --reverse
+git commit --amend --no-edit  # extend previouse commit 
 
 ###########################################################
 ##### Git configuration ################

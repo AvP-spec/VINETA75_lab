@@ -1,3 +1,7 @@
+## install conda + python via
+## https://conda-forge.org/download/
+
+
 ## test if conda installed via bash terminal:
 conda --version
 >> conda 25.3.1
