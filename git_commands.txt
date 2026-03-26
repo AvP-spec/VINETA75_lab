@@ -32,6 +32,16 @@ __pycache__/
 !.gitignore
 ------------------
 
+
+## remote connection
+ls -al ~/.ssh                        # see available keys
+mkdir -p ~/.ssh                      # make folders for keys
+ssh-keygen -t ed25519 -f ~/.ssh/key1 # generate key in file key1 
+cat ~/.ssh/key1.pub                  # see the key
+git remote set-url origin ssh_remote name  ## set remote via ssh
+git remote -v                        # check remote settings
+
+
 ##### first commit ##############
 git init  ## take the folder ander control of git
 git add . ## add whole directory
