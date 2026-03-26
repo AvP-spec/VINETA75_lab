@@ -41,6 +41,9 @@ cat ~/.ssh/key1.pub                  # see the key
 git remote set-url origin ssh_remote name  ## set remote via ssh
 git remote -v                        # check remote settings
 
+eval `ssh-agent -s`                  # run Windows ssh agent in this terminal
+ssh-add ~/.ssh/key1                  # add the key to the agent
+
 
 ##### first commit ##############
 git init  ## take the folder ander control of git
