@@ -7,6 +7,7 @@ git difftool file_name.py
 
 git pull origin main --allow-unrelated-histories
 git push -u origin main
+git log --oneline --graph --decorate -n 5
 
 ###########################################################
 ##### Git configuration ################
@@ -36,6 +37,19 @@ __pycache__/
 .*
 !.gitignore
 ------------------
+
+
+## remote connection
+ls -al ~/.ssh                        # see available keys
+mkdir -p ~/.ssh                      # make folders for keys
+ssh-keygen -t ed25519 -f ~/.ssh/key1 # generate key in file key1 
+cat ~/.ssh/key1.pub                  # see the key
+git remote set-url origin ssh_remote name  ## set remote via ssh
+git remote -v                        # check remote settings
+
+eval `ssh-agent -s`                  # run Windows ssh agent in this terminal
+ssh-add ~/.ssh/key1                  # add the key to the agent
+
 
 ##### first commit ##############
 git init  ## take the folder ander control of git
