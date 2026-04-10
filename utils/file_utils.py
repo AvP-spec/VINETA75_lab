@@ -1,0 +1,160 @@
+import pandas as pd
+from datetime import datetime
+from pathlib import Path
+import os
+import sys
+import getpass
+import json
+
+RELATIVE_BASE_PATH = Path(r"Nextcloud\5360.AG_Manz\DATA")
+
+##### import project related moduls ####
+current_file = Path(__file__).resolve()
+project_root = current_file.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from utils.terminal_styler import TerminalColours
+
+
+def get_data_dir(
+        base_path: str = RELATIVE_BASE_PATH, 
+        base_name: str = "",
+        )-> Path:
+    """
+    Creates and returns a directory path for today's experiment.
+
+    Format: base_dir / YYYY-MM-DD_user_base_name
+    If base_path is absolute, uses it as is.
+    If base_path is relative, joins it with Path.home().
+    """
+    provided_path = Path(base_path)
+    if provided_path.is_absolute():
+        base_dir = provided_path
+    else:
+        # get path to user folder
+        base_dir = Path.home() / provided_path
+
+    now = datetime.now()
+    user = getpass.getuser()
+    folder_suffix = f"_{base_name}" if base_name else ""
+    date_str = f"{now.strftime('%Y-%m-%d')}_{user}{folder_suffix}"
+    target_dir = base_dir / date_str
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    return target_dir
+
+def get_data_file_name(
+        data_dir: Path, 
+        base_name:str="",
+        extension: str = "csv"
+        ) -> Path:
+    
+    """
+    Generates a full path for a data file with a timestamp.
+    Format: data_dir / hh-mm-ss_ms_base_name.extension
+    """
+    now = datetime.now()
+    time_str = now.strftime("%H-%M-%S_%f")[:-3] # hh-mm-ss_ms
+    name_part = f"_{base_name}" if base_name else ""
+    file_name = f"{time_str}{name_part}.{extension}"
+    
+    return data_dir / file_name
+
+
+def save_dataframe(
+        df: pd.DataFrame, 
+        file_path: Path, 
+        metadata: dict = None,
+        sep: str = '\t', # ","
+        index: bool = True,
+        silent: bool = False,
+        **kwards # kwards for pd.DataFrame.to_csv
+        ):
+    
+    if not silent:
+        print( "save_dataframe from from utils.terminal_styler")
+
+    human_lines = []
+    human_lines.append(f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    if metadata:
+        for key, value in metadata.items():
+            human_lines.append(f"# {key}: {value}")
+        
+        # all header in one JSON line 
+        meta_json = json.dumps(metadata, ensure_ascii=False)
+        human_lines.append(f"# JSON_META: {meta_json}")
+
+        num_header_lines = len(human_lines) + 2
+
+        header = (f"# Header-Lines: {num_header_lines}\n" 
+                  + "\n".join(human_lines) + "\n")
+        # extra empty line to separate the header
+        header += "\n"
+    else:
+        header = ''
+
+    tc = TerminalColours()
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(header)
+            df.to_csv(f, sep=sep, index=index, **kwards)
+        if not silent:
+            print(f"{tc.GREEN} data frame saved to: {tc.RESET}")
+            print(f"{file_path} \n")
+        return True
+    except Exception as e:
+        print(f"{tc.RED} Error save_dataframe from utils.terminal_styler")
+        print(f"Error: {e}")
+        return False
+
+
+
+if __name__ == "__main__":
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+    path_ = get_data_dir()
+    print(path_)
+    f_name = get_data_file_name(data_dir=path_, base_name='test')
+    print(f_name)
+
+    def test_save_dataframe():
+        test_df = pd.DataFrame({
+        'time_s': [0.0, 0.6, 1.2, 1.8, 2.4],
+        'piezo_V': [-10.0, -5.0, 0.0, 5.0, 10.0],
+        'wavelength_nm': [780.241, 780.243, 780.245, 780.247, 780.249]
+        })
+
+        test_meta = {
+        "project": "Unit_Test_Project",
+        "operator": getpass.getuser(),
+        "v_step": 5.0,
+        "n_wlm": 1,
+        "notes": "Testing file_utils architecture"
+        }
+
+        data_dir = get_data_dir(base_name="save_test")
+        f_name = get_data_file_name(data_dir=data_dir, base_name="AI_df")
+        success = save_dataframe(
+                                 test_df, 
+                                 file_path=f_name, 
+                                 metadata=test_meta,
+                                 sep='\t',
+                                 index=True,
+                                 silent=False,
+                                 )
+
+        return success
+
+    test_save_dataframe()
+
+
+
+
+
+
+
+
+

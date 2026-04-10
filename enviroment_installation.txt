@@ -34,3 +34,11 @@ conda install spyder-kernels=3.0
 
 ##
 conda install pandas
+conda install matplotlib
+
+### Spyder installation
+conda activate base
+conda install spyder
+
+conda activate Andrei_lab
+conda install spyder-kernels

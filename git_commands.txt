@@ -2,6 +2,11 @@ git status -s # short status
 git add .     # add evrething, or put filename instead of dot
 git log --oneline --reverse
 git commit --amend --no-edit  # extend previouse commit 
+git diff file_name.py
+git difftool file_name.py
+
+git pull origin main --allow-unrelated-histories
+git push -u origin main
 
 ###########################################################
 ##### Git configuration ################

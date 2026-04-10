@@ -48,12 +48,12 @@ class Q8326(BaseDevice):
         self.time_sleep = 0.05 # might work with 0.01
 
 
-    def after_connect(self):
+    def after_connect(self, silent=True):
         print("Advantest_Q8326 after_connect()")
         self.connection.clear()
         time.sleep(self.time_sleep)
         self.send_command("M1")      #"Sample Mode HOLD",
-        self.flush_buffer_GPIB()
+        self.flush_buffer_GPIB(silent=silent)
         self.send_command("F1")    # function LASER for measurement of a laser wavelength/frequency
         self.send_command("W0")    # "set wavelength range: 480-1000 nm",
         self.send_command("RF0")   # drift off
@@ -181,26 +181,31 @@ class Q8326(BaseDevice):
         end_time = time.perf_counter()
         
         return {
-            "time_s": start_time,
-            "wavelength": value,
-            "duration_s": end_time - start_time
+            'time_s': start_time,
+            'wavelength': float(value),
+            'duration_s': end_time - start_time
               } 
     
     def wlm_monitor(self, n_measurements=1, sleep=None, silent=False):
         if sleep is None:
             sleep= self.time_sleep
-        
+
+        t0 = None
         results = []
         for i in range(n_measurements):
+            data = self.read()
+            if t0 is None:
+                t0 = data['time_s']
+
             if not silent:
-                print(f"wlm_monitor measurement No.{i}")
-            results.append(self.read())
+                print(f"wlm_monitor measurement No.{i}: "
+                      f"{data['wavelength']*1E9:.4f} nm, {data['time_s']-t0:.2f} s ")
+            results.append(data)
             time.sleep(sleep)
-        ## for fast version
-        # results = [self.read() for i in range(n_measurements)]
+ 
         df = pd.DataFrame(results)
         if not df.empty:
-            t0 = df['time_s'].min()
+            #t0 = df['time_s'].min()
             df['time_s'] = df['time_s'] - t0
             df.set_index('time_s', inplace=True)
 
