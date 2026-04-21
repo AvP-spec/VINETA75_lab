@@ -14,13 +14,18 @@ conda create -n Andrei_lab python=3.10
 conda init bash
 ## re-open the terminal
 
-## list available envs 
+
+#####################################
+##       list available envs       ##
+#####################################
 conda info --envs
 
 ## activate Andrei_lab
 conda activate Andrei_lab
 
-## install PyVisa
+#####################################
+
+######## install PyVisa
 pip install pyserial pyvisa pyvisa-py
 
 ## test connected COM ports 
@@ -29,16 +34,31 @@ python -m serial.tools.list_ports
 >> 1 ports found
 
 
-## to make the venv avalible for Spyder 
+########## to make the venv avalible for Spyder 
 conda install spyder-kernels=3.0
 
-##
-conda install pandas
-conda install matplotlib
-
-### Spyder installation
+########### Spyder installation
 conda activate base
 conda install spyder
 
 conda activate Andrei_lab
 conda install spyder-kernels
+
+
+##
+conda install pandas
+conda install matplotlib
+
+#####################################
+##       making vineta_env         ##
+#####################################
+conda env create --file vineta_env.yml
+conda activate vineta_env
+
+## for update:
+conda deactivate
+conda env remove -n vineta_env
+conda env create --file vineta_env.yml
+
+## check qt version
+conda list pyqt

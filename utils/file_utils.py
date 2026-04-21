@@ -5,9 +5,12 @@ import os
 import sys
 import getpass
 import json
+from PyQt6.QtWidgets import QApplication, QFileDialog
+# from PyQt6 import QtWidgets
 # from typing import Union
 
 RELATIVE_BASE_PATH = Path(r"Nextcloud\5360.AG_Manz\DATA")
+ABS_DIR_PATH = Path.home() / RELATIVE_BASE_PATH
 
 ##### import project related moduls ####
 current_file = Path(__file__).resolve()
@@ -16,6 +19,8 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from utils.terminal_styler import TerminalColours
+
+tc = TerminalColours()
 
 
 def make_data_dir(
@@ -51,6 +56,7 @@ def make_data_dir(
     target_dir.mkdir(parents=True, exist_ok=True)
 
     return target_dir
+
 
 def make_data_file_name(
         data_dir: str | Path, # Union[str, Path], 
@@ -119,6 +125,79 @@ def save_dataframe(
         return False
 
 
+def select_file(default_dir=ABS_DIR_PATH, filter="All Files (*)"):
+    app = QApplication.instance() or QApplication(sys.argv)
+    # app = QApplication(sys.argv)
+    file_path, _ = QFileDialog.getOpenFileName(
+        parent=None, # do not connect the new window to pevious App
+        caption='file_utils: Select file', # window title
+        directory=str(default_dir),
+        filter=filter
+    )
+
+    app.quit()
+
+    return file_path
+
+
+def select_folder(default_dir=ABS_DIR_PATH):
+    app = QApplication.instance() or QApplication(sys.argv)
+    # app = QtWidgets.QApplication(sys.argv)
+    folder_path = QFileDialog.getExistingDirectory(
+        parent=None,
+        caption='file_utils: Select folder',
+        directory=str(default_dir),
+        #options=QFileDialog.Option.ShowDirsOnly  # Shows only folders
+    )
+    app.quit()
+
+    return folder_path
+
+
+def read_file_header(filepath):
+    header = {}
+    header_lines = 0
+
+    with open(filepath, 'r', encoding='utf-8') as f:
+        first_line = f.readline()
+
+        if not first_line.startswith('# Header-Lines:'):
+            print(f"file_utils.read_file_header {tc.MAGENTA} Warning:")
+            print(f"# Header-Lines:{tc.RESET} not found in {filepath}")
+            print(f"{tc.MAGENTA}# Header-Lines{tc.RESET} set to 0")
+            return header, header_lines
+        
+        header_lines = int(first_line.split(':')[-1].strip())
+        header_content = [first_line] + [f.readline() for _ in range(header_lines - 1)]
+
+        if header_content[-2].startswith("# JSON_META:"):
+            json_data = header_content[-2].split('# JSON_META:', 1)[1].strip()
+            header = json.loads(json_data)
+
+        else:
+            print(f"file_utils.read_file_header {tc.MAGENTA} Warning:")
+            print(f"# JSON_META:{tc.RESET} not found in {filepath}")
+
+        return (header, header_lines)
+ 
+    
+def read_file(filepath, header_lines:int=None, separator="\t" ):
+    header = {}
+    if header_lines == None:
+        header, n_lines = read_file_header(filepath=filepath)
+    else:
+        n_lines = header_lines
+
+    df = pd.read_csv(
+        filepath,
+        skiprows=n_lines,
+        sep=separator,
+        comment='#' # skipping lines started with this sign
+    )
+
+    return df, header
+    
+
 
 if __name__ == "__main__":
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -151,8 +230,7 @@ if __name__ == "__main__":
 
         print("-" * 80)
 
-    test_make_data_dir()
-
+   # test_make_data_dir()
 
 
     def test_save_dataframe():
@@ -186,7 +264,22 @@ if __name__ == "__main__":
 
         return success
 
-    test_save_dataframe()
+  #  test_save_dataframe()
+
+
+    file_path = select_file()
+    print(file_path)
+    # header, n_lines = read_file_header(filepath=file_path)
+    # print(header)
+
+    df, header = read_file(filepath=file_path)
+    print(df.head())
+    print(header)
+
+    # folder_path = select_folder()
+    # print(folder_path)
+
+
 
 
 
