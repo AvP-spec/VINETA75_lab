@@ -1,10 +1,11 @@
 import pandas as pd
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePath
 import os
 import sys
 import getpass
 import json
+# from typing import Union
 
 RELATIVE_BASE_PATH = Path(r"Nextcloud\5360.AG_Manz\DATA")
 
@@ -17,13 +18,12 @@ if str(project_root) not in sys.path:
 from utils.terminal_styler import TerminalColours
 
 
-def get_data_dir(
+def make_data_dir(
         base_path: str = RELATIVE_BASE_PATH, 
         base_name: str = "",
         )-> Path:
     """
-    Creates and returns a directory path for today's experiment.
-
+    Creates directory and returns its path for today's experiment.
     Format: base_dir / YYYY-MM-DD_user_base_name
     If base_path is absolute, uses it as is.
     If base_path is relative, joins it with Path.home().
@@ -37,16 +37,23 @@ def get_data_dir(
 
     now = datetime.now()
     user = getpass.getuser()
-    folder_suffix = f"_{base_name}" if base_name else ""
-    date_str = f"{now.strftime('%Y-%m-%d')}_{user}{folder_suffix}"
-    target_dir = base_dir / date_str
+    date_str = f"{now.strftime('%Y-%m-%d')}_{user}"
+
+    if not base_name:
+        target_dir = base_dir / date_str
+    elif base_name.startswith(("/", "\\")):
+        clean_name = base_name.lstrip("/\\") # to not be confused with root
+        sub_path = PurePath(clean_name) # if more subfolders
+        target_dir = base_dir / date_str / sub_path
+    else:
+        target_dir = base_dir / f"{date_str}_{base_name}"
 
     target_dir.mkdir(parents=True, exist_ok=True)
 
     return target_dir
 
-def get_data_file_name(
-        data_dir: Path, 
+def make_data_file_name(
+        data_dir: str | Path, # Union[str, Path], 
         base_name:str="",
         extension: str = "csv"
         ) -> Path:
@@ -55,8 +62,9 @@ def get_data_file_name(
     Generates a full path for a data file with a timestamp.
     Format: data_dir / hh-mm-ss_ms_base_name.extension
     """
+    data_dir = Path(data_dir)
     now = datetime.now()
-    time_str = now.strftime("%H-%M-%S_%f")[:-3] # hh-mm-ss_ms
+    time_str = now.strftime("%H-%M-%S") # hh-mm-ss
     name_part = f"_{base_name}" if base_name else ""
     file_name = f"{time_str}{name_part}.{extension}"
     
@@ -115,10 +123,37 @@ def save_dataframe(
 if __name__ == "__main__":
     os.system('cls' if os.name == 'nt' else 'clear')
 
-    path_ = get_data_dir()
-    print(path_)
-    f_name = get_data_file_name(data_dir=path_, base_name='test')
-    print(f_name)
+    rpath = RELATIVE_BASE_PATH / "test_output_delete_me"
+
+
+    def test_make_data_dir(rpath=rpath):
+        test_cases = [
+        "",                             # Empty (default folder)
+        "experiment_v1",                # Simple string (suffix)
+        "/sub_folder",                  # Leading forward slash (subfolder)
+        "\\sub_folder_win",             # Leading backslash (subfolder)
+        "/sub1/sub2",                   # Multiple levels (Linux style)
+        "\\sub1\\sub2",                 # Multiple levels (Windows style)
+        "///double_slashes",            # Messy leading slashes
+        "hint_name/subfolder"
+    ]
+        
+        print(f"{'INPUT (base_name)':<25} | {'RESULTING PATH'}")
+        print("-" * 80)
+        
+        
+        for case in test_cases:
+            try:
+                result_path = make_data_dir(base_path=rpath, base_name=case)
+                print(f"{repr(case):<25} | {result_path}")
+            except Exception as e:
+                print(f"{repr(case):<25} | Error: {e}")
+
+        print("-" * 80)
+
+    test_make_data_dir()
+
+
 
     def test_save_dataframe():
         test_df = pd.DataFrame({
@@ -135,8 +170,11 @@ if __name__ == "__main__":
         "notes": "Testing file_utils architecture"
         }
 
-        data_dir = get_data_dir(base_name="save_test")
-        f_name = get_data_file_name(data_dir=data_dir, base_name="AI_df")
+        data_dir = make_data_dir(
+                    base_path=rpath,
+                    base_name="save_test"
+                    )
+        f_name = make_data_file_name(data_dir=data_dir, base_name="AI_df")
         success = save_dataframe(
                                  test_df, 
                                  file_path=f_name, 

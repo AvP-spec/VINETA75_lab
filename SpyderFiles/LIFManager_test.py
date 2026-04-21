@@ -5,7 +5,13 @@ Created on Wed Apr  8 16:57:36 2026
 @author: Andrei
 """
 #%%
+MODULAR_MODE = True
+
+assert not MODULAR_MODE, "Modular MODE is ON, Run ALL is aborted"
+print("Modular Mod is off")
+#%%
 from managers.lif import LIFManager
+import utils.file_utils as fu
 
 #%%
 rm = LIFManager()
@@ -19,7 +25,8 @@ print(rm.master_diode.read_piezo())
 
 #%%
 rm.wlm.average_on()
-
+#%%
+rm.wlm.average_off()
 #%%
 df_wlm = rm.wlm.wlm_monitor(
     n_measurements=10, 
@@ -29,20 +36,27 @@ print(df_wlm.describe())
 
 #%%
 df = rm.scan_piezo(
-    v_step=5,
+    v_step=1,
     )
 #%%
-import utils.file_utils as fu
-data_dir = fu.get_data_dir()
+print(df)
+
+#%%
+
+data_dir = fu.make_data_dir(
+    base_name="piezo_scan"
+    )
+
+#%%
 file_path = fu.get_data_file_name(
     data_dir=data_dir,
-    base_name="laser_scan_test"
+    base_name="piezo_scan_test_average_OFF"
     )
 #%%
 fu.save_dataframe(df, file_path)
 
 #%%
-print(df)
+print(df.columns)
 
 #%%
 print(file_path)

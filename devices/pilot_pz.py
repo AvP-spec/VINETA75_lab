@@ -205,24 +205,31 @@ class PilotPZ(BaseDevice):
     def read_status(self, silent=True):
         return self.read_value(":Laser:STATus?", silent=silent)
     
-    def read_laser(self):
+    def read_laser(self, device_read_time=True):
         '''read all Pilot state parameters'''
-        start_time = time.perf_counter()
-        state = {
-            "time_s": start_time,
+        t0 = time.perf_counter()
+        data = {
             "current_A": float(self.read_current()),
-            "set_current_A": float(self.read_setcurrent()),
+            "photo_diode_current_A": float(self.read_pdiode_current()),
             "temperature_C": float(self.read_temperature()),
+            "set_current_A": float(self.read_setcurrent()),
             "set_temperature_C": float(self.read_settemperature()),
             "power": float(self.read_power()),
-            "photo_diode_current_A": float(self.read_pdiode_current()),
             "laser_mode": self.read_mode()
         }
         if self.piezo: 
-            state["piezo_off_set_V"] = self.read_piezo()
+            data["piezo_off_set_V"] = self.read_piezo()
 
-        state["duration"] = time.perf_counter() - start_time
-        return state
+        dt = time.perf_counter() - t0 
+
+        result = {}
+        if device_read_time:
+            result.update( {"time_s": t0,
+                            "duration_s": dt })
+            
+        result.update(data)
+    
+        return result
 
 
     def laser_monitor_df(self, n_measurements=5, sleep=None, silent=False):
@@ -365,19 +372,21 @@ class PilotPZ(BaseDevice):
 
     def switch_on(self, silent=True, timeout=10):
         # self.connection.timeout = 10_000
-        self.send_command("Laser:STATus ON")
+        self.send_command("Laser:STATus ON", silent=silent)
         start_time = time.perf_counter()
         while True:
             if self.connection.query("Laser:STATus?") == "ON":
+                status = self.read_status(silent=silent)
+                print(f"{self.name} is {self.BLUE}{status}{self.RESET}")
                 return self
             if (time.perf_counter() - start_time) > timeout:
-                print(f"{self.RED}Timeout Error: {self.name} did not turn on within {timeout}s{self.RESET}")
-                return self # Exit without printing the final status
+                raise TimeoutError(f"Laser {self.RED}{self.name}{self.RESET} did not turn on within {timeout}s")
             time.sleep(self.time_sleep)
+        
 
 
     def switch_off(self, silent=True):
-        self.send_command("Laser:STATus OFF")
+        self.send_command("Laser:STATus OFF", silent=silent)
         status = self.read_status(silent=silent)
         print(f"{self.name} is {self.BLUE}{status}{self.RESET}")
         return self

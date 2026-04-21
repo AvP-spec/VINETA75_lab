@@ -148,11 +148,22 @@ class Q8326(BaseDevice):
         critical for stable and synchronysed connectoin of the instrument with pyvisa 
         silent=False will print the buffer content
         '''
+        # print("Q8326.flush_buffer_GPIB()")
+
         self.connection.timeout = 500
-        for _ in range(10):
+        start_time = time.time()
+        max_duration = 120  # 2 minutes in seconds
+        count = 0
+        while True:
+            if time.time() - start_time > max_duration:
+                self.connection.timeout = self.CONNECTION_SETTINGS["timeout"]
+                raise TimeoutError(f"[{self.name}] Critical Error:" 
+                                 f" {self.RED} Buffer flush exceeded {max_duration}s.{self.RESET} "
+                               "The instrument might be stuck in continuous mode.")
             try:
                 junk = self.connection.read_raw()
-                print(f"Flushed junk No.{_}: {junk}")
+                count += 1
+                print(f"Flushed junk No.{count}: {junk}")
             except pyvisa.errors.VisaIOError:
                 if not silent:
                     print(f"[{self.name}]: {self.GREEN} buffer is empty {self.RESET}")
@@ -174,17 +185,23 @@ class Q8326(BaseDevice):
         self.average = "OFF"
         return self
 
-    def read(self, silent=True):
-        self.flush_buffer_GPIB(silent=silent) # takes 0.6 sec
-        start_time = time.perf_counter()
+    def read(self, silent=True, device_read_time=False):
+        """Read wavelength with optional timing metadata."""
+        if not silent:
+            self.flush_buffer_GPIB(silent=silent) # takes 0.6 sec
+
+        t0 = time.perf_counter()
         value = self.connection.query("E")
-        end_time = time.perf_counter()
-        
-        return {
-            'time_s': start_time,
-            'wavelength': float(value),
-            'duration_s': end_time - start_time
-              } 
+        dt = time.perf_counter() - t0
+
+        readout = {}
+        if device_read_time:
+            readout.update({'time_s': t0, 
+                            'duration_s': dt}) 
+        readout['wavelength'] = float(value)
+
+        return readout
+
     
     def wlm_monitor(self, n_measurements=1, sleep=None, silent=False):
         if sleep is None:
@@ -193,7 +210,7 @@ class Q8326(BaseDevice):
         t0 = None
         results = []
         for i in range(n_measurements):
-            data = self.read()
+            data = self.read(silent=True, device_read_time=True)
             if t0 is None:
                 t0 = data['time_s']
 

@@ -9,6 +9,32 @@ git pull origin main --allow-unrelated-histories
 git push -u origin main
 git log --oneline --graph --decorate -n 5
 
+git remote -v # list all remotes
+git fetch Lab_avp
+git diff main Lab_avp/main --stat
+
+#########################################################
+################### push to Gitea ##################
+
+#### look and clean history
+git log --oneline --reverse
+# to collect last 10 commits in one
+git rebase -i HEAD~10
+# in redactor let first "pick" others chahge to "squash" or "s"
+# save and close
+# new reductor window: write new comment 
+
+### look if Nextcloud folder has changes
+git fetch Lab_avp
+#### pull from Nextcloud 
+cd ~/Nextcloud/5360.AG_Manz/Programming/python/Lab_avp 
+git pull office main    # git pull (remote) (branch)
+# synchonization with main folder 
+cd /c/Andrei/LAB
+git fetch Lab_avp
+
+
+
 ###########################################################
 ##### Git configuration ################
 

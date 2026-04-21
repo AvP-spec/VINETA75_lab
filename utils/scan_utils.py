@@ -155,6 +155,7 @@ if __name__ == "__main__":
         kwards = [
             {'min_val': -13.5, 'max_val': 13.5, "n_points": 15, 'reverse': False}, 
             {'min_val': -13.5, 'max_val': 13.5, "n_points": 15, 'reverse': True},
+            {'min_val': -13.5, 'max_val': 13.5, "n_points": 9, 'reverse': False},
 
         ]
 

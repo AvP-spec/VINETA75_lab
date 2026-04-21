@@ -58,30 +58,105 @@ class LIFManager(TerminalColours):
         return self
     
 
-    def laser_on(self, silent=False):
-        print(f"{self.CYAN} \n" 
-              f"LIFManager: Starting lasers in parallel...{self.RESET}")
-        # create thread objects
-        t1 = threading.Thread(target=self.master_diode.switch_on,
-                              kwargs={"silent":silent, "timeout":10})
-        t2 = threading.Thread(target=self.amplifier_diode.switch_on,
-                              kwargs={"silent":silent, "timeout":10})
-        # execute oblects
-        t1.start()
-        t2.start()
-        # wait for completion, block the main until threads finfished
-        t1.join()
-        t2.join() 
+    def laser_on(self, silent=True):
+        ### version to start parallel should be avioded:
+        ### switchig on amplifier diode without master diode can damage the laser
+        # print(f"{self.CYAN} \n" 
+        #       f"LIFManager: Starting lasers in parallel...{self.RESET}")
+        # # create thread objects
+        # t1 = threading.Thread(target=self.master_diode.switch_on,
+        #                       kwargs={"silent":silent, "timeout":10})
+        # t2 = threading.Thread(target=self.amplifier_diode.switch_on,
+        #                       kwargs={"silent":silent, "timeout":10})
+        # # execute oblects
+        # t1.start()
+        # t2.start()
+        # # wait for completion, block the main until threads finfished
+        # t1.join()
+        # t2.join() 
         
-        ### version of consequent start
-        # self.master_diode.switch_on()
-        # self.amplifier_diode.switch_on()
+        ### version to start Starting lasers sequentially
+        print(f"{self.CYAN} \n" 
+              f"LIFManager: Starting lasers sequentially{self.RESET}")
+        try:
+            self.master_diode.switch_on(silent=silent)
+            self.amplifier_diode.switch_on(silent=silent)
+        except TimeoutError as e:
+            print(f"Safety shutdown: {e}")
+            self.laser_off(silent=silent)
         return self
 
-    def laser_off(self):
-        self.master_diode.switch_off()
+    def laser_off(self, silent=False):
+        ### the amplifier diode should not operate without master
+        print(f"{self.CYAN} \n LIFManager: Shating lasers off{self.RESET}")
         self.amplifier_diode.switch_off()
+        self.master_diode.switch_off()
         return self
+
+    @staticmethod
+    def _label_keys(dct:dict, label:str):
+        '''
+        Adds label to all keys in the dictionary.
+        '''
+        return {f"{label}_{k}": v for k, v in dct.items()}
+
+    def read_state(self, 
+                   silent=True, # only for wlm
+                   device_read_time=False, # extra time-stemps
+                   ):
+        '''
+        Read laser drivers and wavemeter in parallel.
+        '''
+        start_time = time.perf_counter()
+
+        ### container to form the oreder of the output
+        ### [wlm, master, amplif]
+        task_results = [None, None, None]
+
+        # data = {}  
+        def worker(index, label, method, kwargs):
+            try:
+                readout = method(**kwargs)
+                labeled = self._label_keys(readout, label)
+                task_results[index] = labeled
+                # data.update(labeled)
+            except Exception as e:
+                task_results[index] = {f"{label}_error": str(e)}
+                # data[f"{label}_error"] = str(e)
+
+        tasks = [
+             (0, 'wlm', self.wlm.read, 
+             {'silent': silent, 
+              'device_read_time': device_read_time}),
+
+             (1, 'master', self.master_diode.read_laser, 
+             {'device_read_time': device_read_time}),
+
+             (2, 'amplif', self.amplifier_diode.read_laser, 
+             {'device_read_time': device_read_time})
+        ]
+
+        threads = []
+        for index, label, method, kwargs in tasks:
+            t = threading.Thread(target=worker, args=(index, label, method, kwargs))
+            threads.append(t)
+
+        ### start thresds
+        for t in threads: t.start()
+        ### wait for completion
+        for t in threads: t.join()
+
+        results = {
+            "start_time": start_time,
+            'duration_s': time.perf_counter() - start_time,
+        }
+
+        for data in task_results:
+            if data:
+                results.update(data)
+
+        return results
+
 
 
     def scan_piezo(self, 
@@ -90,7 +165,9 @@ class LIFManager(TerminalColours):
                    v_min:float=None, # min piezo voltage
                    v_unit:str="[V]", # piezo voltage units 
                    n_wlm:int=5, # number of wavelength measurements
-                   zigzag:bool=True
+                   zigzag:bool=True,
+                   device_read_time=False,
+                   silent=True # only for wlm in current implementation
                     ):
     
         '''
@@ -130,38 +207,48 @@ class LIFManager(TerminalColours):
                     zigzag=zigzag,
                     )
 
+        # result = []
+        # t0 = time.perf_counter()
+        # i = 0
+        # for v in v_list:
+        #     i += 1
+        #     print(f"meausurement {i} from {len(v_list)}")
+        #     self.master_diode.set_piezo(value=v, unit="V", silent=True)
+        #     data = [self.wlm.read() for i in range(n_wlm)]
+        #     wls = [key['wavelength'] for key in data]
+        #     times = [key['time_s'] for key in data]
+        #     result.append({
+        #         'time_s': min(times) - t0,
+        #         'duration_s': max(times) - min(times),
+        #         'pieso_V': v,
+        #         'wavelength': sum(wls) / len(wls),
+        #         'wls_err' : (max(wls) - min(wls))/2,
+        #         'wls_std' : np.std(wls) if n_wlm > 2 else 0
+        #     })
+        #     print(f"piezo offset {v} V, wavelength {result[-1]['wavelength']}")
+
         result = []
         t0 = time.perf_counter()
         i = 0
         for v in v_list:
             i += 1
-            print(f"meausurement {i} from {len(v_list)}")
+            print(f"meausurement {i} from {len(v_list)}, piezo {v} [V]", end=" nm = ")
             self.master_diode.set_piezo(value=v, unit="V", silent=True)
-            data = [self.wlm.read() for i in range(n_wlm)]
-            wls = [key['wavelength'] for key in data]
-            times = [key['time_s'] for key in data]
-            result.append({
-                'time_s': min(times) - t0,
-                'duration_s': max(times) - min(times),
-                'pieso_V': v,
-                'wavelength': sum(wls) / len(wls),
-                'wls_err' : (max(wls) - min(wls))/2,
-                'wls_std' : np.std(wls) if n_wlm > 2 else 0
-            })
-            print(f"piezo offset {v} V, wavelength {result[-1]['wavelength']}")
+            data = self.read_state(
+                   silent=silent, # only for wlm
+                   device_read_time=device_read_time, # extra time-stemps
+                   )
+            data['start_time'] -= t0
+            print(float(data['wlm_wavelength'])*1E9)
+            result.append(data) 
+
+
+
         print(f"{self.GREEN} scan finished {self.RESET}")
         return pd.DataFrame(result)
 
-
-
-
-        
-
-                
-
-        
-
     
+
     def drift_monitor(self):
         pass
 
@@ -170,11 +257,39 @@ class LIFManager(TerminalColours):
 
 if __name__ == "__main__":
     os.system('cls' if os.name == 'nt' else 'clear')
-    print(f"{data_path=}")
-    print(f"{current_file=}")
-    print(f"{project_root=}")
+    # print(f"{data_path=}")
+    # print(f"{current_file=}")
+    # print(f"{project_root=}")
+
+    def test_label_keys():
+        dct = {
+            "current_A": 1.25,
+            "temperature_C": 24.5,
+            "status": "ON",
+            "interlock": True
+            }
+        labeled_dct = LIFManager._label_keys(dct=dct, label="master")
+        print(f"original dict= {dct}")
+        print(f"new dict = {labeled_dct}")
+
+   # test_label_keys()
+
 
     r_man = LIFManager()
-    r_man.laser_on()
-    r_man.laser_off()
+
+    readout = r_man.read_state()
+    print(readout)
+
+    def test_scan_piezo():
+        # scan_list = su.get_scan_list_stepped(step=3,
+        #                          zigzag=True)
+        df = r_man.scan_piezo(v_step=3, v_unit="[V]")
+        print(df)
+        
+    # test_scan_piezo()
+
+    # master_readout = r_man.master_diode.read_laser()
+    # print(master_readout)
+    # r_man.laser_on(silent=True)
+    # r_man.laser_off(silent=True)
     r_man.disconnect_all()
