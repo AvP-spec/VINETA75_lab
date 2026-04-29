@@ -80,7 +80,7 @@ class PilotPZ(BaseDevice):
         device_list = self._get_COM_connections()
         # print(device_list)
         # print(self.hwid)
-        pilot_list = [dev for dev in device_list if dev[2] == self.hwid]
+        pilot_list = [dev for dev in device_list if self.hwid in dev[2]]    # <-- dev[2] kann jetzt VID:PID:SER = 0403:6001:None sein
         # print(pilot_list)
         for pilot in pilot_list:
             self.port = self._com_to_visa(pilot[0])
@@ -109,7 +109,7 @@ class PilotPZ(BaseDevice):
     ##### general functions #######
     def flush_buffer(self, silent=False):
         '''
-        critical for stable and synchronysed connectoin of the instrument with pyvisa 
+        critical for stable and synchronysed connection of the instrument with pyvisa 
         silent=False will print the buffer content
         '''
         n = self.connection.bytes_in_buffer
@@ -135,12 +135,11 @@ class PilotPZ(BaseDevice):
         return self 
 
 
-    def read_value(self, cmd:str, silent=True):
-        ''' similar to send command, but returns instrument response '''
-        response = self.connection.query(cmd) 
-        time.sleep(self.time_sleep)
-        # print(f"{cmd}: {response}" )
-        self.flush_buffer(silent=silent)
+    def read_value(self, cmd, silent=True):
+        if self.connection is None:
+            print(f"Error in read_value(): Device not connected")
+            return None  # oder raise ConnectionError(...)
+        response = self.connection.query(cmd)
         return response
 
 
@@ -403,7 +402,8 @@ class PilotPZ500(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID:SER = 0403:6001:6"
+        self.hwid = "VID:PID = 0403:6001"   # <-- ist in base_devise geregelt
+        
         self.IDN = "Sacher Lasertechnik, PilotPC 500, SN14092044, SW V8.00 HW V9.0 PZ V8.0"
         self.name = "PilotPC 500"
         self.current = {
@@ -435,7 +435,8 @@ class PilotPC4000(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID:SER = 0403:6001:6"
+        self.hwid = "VID:PID = 0403:6001"   # <-- ist in base_devise geregelt
+
         self.name = "PilotPC4000"
         self.IDN = "Sacher Lasertechnik, PilotPC 4000, SN15093017, SW V8.00 HW V9.0"
         self.current = {
@@ -459,8 +460,12 @@ if __name__ == "__main__":
     amplifier_diode = PilotPC4000()
     amplifier_diode.connect()
     print()
-    
+
+
     def read_limits(laser:object):
+        if laser.connection is None:
+            print("read_limits() aborted: Device not connected")
+            return
         print(f"\n=== {laser.GREEN} scan_laser_parameters() {laser.RESET}===")
         I_max = laser.read_value(":Laser:ILIMit? MAX")
         I_min = laser.read_value(":Laser:ILIMit? MIN")

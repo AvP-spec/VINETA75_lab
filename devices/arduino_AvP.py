@@ -21,7 +21,7 @@ class ArduinoAvP(BaseDevice):
 
 
 if __name__ == "__main__":
-    os.system('cls')
+    os.system('cls' if os.name == 'nt' else 'clear')
     arduino = ArduinoAvP()
     arduino.print_connections()
     #print(f"{arduino.connection=}")

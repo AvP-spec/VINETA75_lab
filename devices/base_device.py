@@ -15,9 +15,13 @@ from utils.terminal_styler import TerminalColours
 
 class BaseDevice(TerminalColours):
     DEVICE_DIKT = {
+        # GPIB: 
         "USB0::0x03EB::0x2065::GPIB_06_4423030363035131A1C0::INSTR": "wavelength meter",
-        "VID:PID:SER = 0403:6001:6": "Pilot",
+        # VID:PID fallback für Messgeräte ohne Seriennummer: 
+        "VID:PID = 0403:6001": "Pilot series", 
+        # Arduino per Seriennummer: 
         "VID:PID:SER = 2341:0043:24238313635351910130": "Arduino-AvP",
+        "VID:PID:SER = 2341:0043:859373138373518122F1": "Arduino-Erik",
     }
 
     CONNECTION_SETTINGS = {}
@@ -26,7 +30,7 @@ class BaseDevice(TerminalColours):
     def __init__(self):
         self.rm = None
         try:
-            self.rm = pyvisa.ResourceManager()
+            self.rm = pyvisa.ResourceManager('@py')
         except Exception:
             print(self.RED)
             print("BaseDevice init Error, pyvisa.ResourceManager() not created")
@@ -51,12 +55,40 @@ class BaseDevice(TerminalColours):
         device_list = []
         ports = serial.tools.list_ports.comports()
         for port in ports:
+            # ttyS Ports ohne VID/PID überspringen
+            if port.vid is None and str(port.device).startswith('/dev/ttyS'):
+                continue
             vid = f"{port.vid:04X}" if port.vid is not None else "None"
             pid = f"{port.pid:04X}" if port.pid is not None else "None"       
             serial_no = f"{port.serial_number}" if port.serial_number is not None else "None"
             
-            # constract hardware identificator
-            hwid_ = f"VID:PID:SER = {vid}:{pid}:{serial_no}" 
+            # Symlink nur unter Linux prüfen
+            symlink_name = None
+            if os.name != 'nt':  # nicht Windows
+                dev_path = Path(port.device)
+                for link in Path("/dev").iterdir():
+                    if link.name.startswith("ttyPilot"):
+                        try:
+                            if link.resolve() == dev_path.resolve():
+                                symlink_name = link.name
+                                break
+                        except Exception:
+                            pass
+            
+            # Priorität: SER+Symlink → SER → VID:PID
+            hwid_full_sym = f"VID:PID:SER = {vid}:{pid}:{serial_no}:{symlink_name}" if symlink_name else None
+            hwid_full     = f"VID:PID:SER = {vid}:{pid}:{serial_no}"
+            hwid_short    = f"VID:PID = {vid}:{pid}"
+
+            if hwid_full_sym and hwid_full_sym in self.DEVICE_DIKT:
+                hwid_ = hwid_full_sym
+            elif hwid_full in self.DEVICE_DIKT:
+                hwid_ = hwid_full
+            elif hwid_short in self.DEVICE_DIKT:
+                hwid_ = hwid_short
+            else:
+                hwid_ = hwid_full  # für "not in DEVICE_DIKT" Ausgabe
+                
             if hwid_ in self.DEVICE_DIKT:
                 device_list.append([port.device, self.DEVICE_DIKT[hwid_], hwid_ ])
             else:  
@@ -78,7 +110,6 @@ class BaseDevice(TerminalColours):
                 device_list.append([res, self.DEVICE_DIKT[res]])
             else:
                 device_list.append([res, "not in DEVICE_DIKT"])
-
         return device_list
     
     def _print_device_list(self, dv_list):
@@ -92,24 +123,27 @@ class BaseDevice(TerminalColours):
         COM_list = self._get_COM_connections()
         GPIB_list = self._get_GPIB_connections()
 
-        print(" COM connectios ".center(50, '-'))
+        print(" COM connections ".center(50, '-'))
         self._print_device_list(COM_list)
-        print(" GPIB/VISA connectios ".center(50, '-'))
+        print(" GPIB/VISA connections ".center(50, '-'))
         self._print_device_list(GPIB_list)
         print(" print_connections() ended ".center(50, '-'))
 
     def _com_to_visa(self, port):
-        ''' transfer "COMx" to 'ASRLx::INSTR'
-        '''
-        port_number = str(port).upper().replace("COM", "").strip()
-        return f"ASRL{port_number}::INSTR"
+        port = str(port)
+        if port.upper().startswith("COM"):
+            # Windows: COM3 → ASRL3::INSTR
+            port_number = port.upper().replace("COM", "").strip()
+            return f"ASRL{port_number}::INSTR"
+        else:
+            # Linux with Symlink: /dev/ttyACM0 → ASRL/dev/ttyACM0::INSTR
+            return f"ASRL{port}::INSTR"
 
     def get_COM_port(self):
-
         # test if hwid given
         if self.hwid is None:
             print(f"{self.RED}Error in get_COM_port() of BaseDevice")
-            print(f"{self.RED} It is BaseDevice, no hwd, no connections {self.RESET}")
+            print(f"{self.RED} It is BaseDevice, no hwd defined, no connections {self.RESET}")
             return self
         # test if the devive known and in DEVICE_DIKT
         if self.hwid not in self.DEVICE_DIKT:
@@ -128,6 +162,56 @@ class BaseDevice(TerminalColours):
         print(f"{self.RED}Error in get_COM_port() of BaseDevice")
         print(f"Device {self.name} with HWID {self.hwid} not found!")
         print(f"probably it is not connected to COM port{self.RESET}")
+        return self
+    
+
+    def get_COM_port_by_idn(self, idn_expected:str, silent=True):
+        '''
+        Findet den Port eines Geräts anhand seiner IDN-Antwort.
+        Iteriert durch alle Ports mit passender VID:PID und sendet *IDN?.
+        Plattformunabhängig – kein udev oder Seriennummer nötig.
+        '''
+        if self.hwid is None:
+            print(f"{self.RED}Error in get_COM_port_by_idn(): no hwid defined{self.RESET}")
+            return self
+
+        vid_pid = self.hwid  # z.B. "VID:PID = 0403:6001"
+        device_list = self._get_COM_connections()
+
+        # alle Ports mit passender VID:PID sammeln
+        candidates = [dv for dv in device_list if vid_pid in dv[-1]]
+
+        if not candidates:
+            print(f"{self.RED}No devices with {vid_pid} found!{self.RESET}")
+            return self
+
+        for dv in candidates:
+            port = self._com_to_visa(dv[0])
+            if not silent:
+                print(f"Trying {port} ...")
+            try:
+                inst = self.rm.open_resource(port, **self.CONNECTION_SETTINGS)
+                import time
+                time.sleep(2)  # Arduino/Gerät Reset abwarten
+                idn = inst.query('*IDN?').strip()
+                if not silent:
+                    print(f"  IDN: {idn}")
+                if idn == idn_expected:
+                    inst.close()
+                    self.port = port
+                    print(f"{self.GREEN}Found {self.name} on {self.port}{self.RESET}")
+                    return self
+                inst.close()
+            except Exception as e:
+                if not silent:
+                    print(f"  Error: {e}")
+                try:
+                    inst.close()
+                except:
+                    pass
+
+        self.port = None
+        print(f"{self.RED}Device {self.name} with IDN '{idn_expected}' not found!{self.RESET}")
         return self
 
 
@@ -151,7 +235,7 @@ class BaseDevice(TerminalColours):
         return self
 
 
-    def after_connect(self):
+    def after_connect(self, silent=True):
         '''hook for particular device connections'''
         print("BaseDevice after_connect")
         return self
@@ -168,7 +252,7 @@ class BaseDevice(TerminalColours):
             try:
                 # self.__inst.close()  # for Stefan scripts can be useful
                 self.connection.close()
-                print(f"{self.GREEN}[{self.name}] Connecton closed.{self.RESET}")
+                print(f"{self.GREEN}[{self.name}] Connection closed.{self.RESET}")
                 self.__inst = None
             except Exception as e:
                 print(f_id)
