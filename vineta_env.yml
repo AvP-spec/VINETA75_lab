@@ -1,0 +1,38 @@
+name: vineta_env
+channels:
+  - conda-forge
+dependencies:
+    - jupyterlab
+    - matplotlib
+    - seaborn
+    - numpy
+    - scipy
+    - pandas
+    - pyserial
+    - pyvisa
+    - pyvisa-py
+    - h5py
+    - openpyxl
+    - ipywidgets
+    - sympy
+    - dask
+    - ipympl
+    - ffmpeg
+    - jupyterlab_widgets
+    - spyder-kernels
+    - pyqt6 # added to this file at 2026_04_22, Andrei, 
+    # pyqt will install version pyqt5 which can be depricated soon
+
+#	  - pathlib  # core python packege 
+    
+    
+# install by running this command in the command line while in the same folder as the .yml file:
+# conda env create --file vineta_env.yml
+
+### update, flag --prune will delit pakeges which are not listed
+# conda activate vineta_env
+# conda env update -f vineta_env.yml --prune  
+
+### update hanging, new installation:
+# conda deactivate
+# conda env remove -n vineta_env

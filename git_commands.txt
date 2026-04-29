@@ -33,6 +33,9 @@ git pull office main    # git pull (remote) (branch)
 cd /c/Andrei/LAB
 git fetch Lab_avp
 
+### push to Gitea
+git push origin main
+
 
 
 ###########################################################
