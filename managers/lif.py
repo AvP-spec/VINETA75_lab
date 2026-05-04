@@ -7,7 +7,7 @@ from pathlib import Path
 import os
 import sys
 
-data_path = Path(r"C:\Andrei\DATA\test_data")
+data_path = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud Manz/DATA/lif_py_test")
 
 ##### import project related moduls ####
 current_file = Path(__file__).resolve()

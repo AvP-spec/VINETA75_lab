@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QApplication, QFileDialog
 # from PyQt6 import QtWidgets
 # from typing import Union
 
-RELATIVE_BASE_PATH = Path(r"Nextcloud\5360.AG_Manz\DATA")
+RELATIVE_BASE_PATH = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud Manz/DATA/")
 ABS_DIR_PATH = Path.home() / RELATIVE_BASE_PATH
 
 ##### import project related moduls ####
