@@ -171,7 +171,7 @@ class LIFManager(TerminalColours):
                     ):
     
         '''
-        pizo info: 
+        piezo info: 
         "limits": {"max": 13.5, "min": -13.5, "unit": "[V]", "resolution": 1E-3}
         "unit_map": {"V": 1, "[V]": 1, "mV": 0.001, "[mV]": 0.001},
         '''
@@ -247,7 +247,129 @@ class LIFManager(TerminalColours):
         print(f"{self.GREEN} scan finished {self.RESET}")
         return pd.DataFrame(result)
 
+
+    def measure_laser_settling(self, 
+                               scenarios: list = None, 
+                               n_measurements: int = 30, 
+                               sleep: float = 0.1,
+                               plot: bool = True, 
+                               save_path: str = None,
+                               ): 
+        piezo_limits = self.master_diode.piezo['limits']
+        v_min = piezo_limits['min']
+        v_max = piezo_limits['max']
+        
+        if scenarios is None:
+            scenarios = [
+                (v_min, v_max,  "min → max (worst case)"),
+                (v_max, v_min,  "max → min (worst case reverse)"),
+                # (0,     5,      "small step: 0 → 5 V"),
+                # (5,     0,      "small step: 5 → 0 V"),
+                # (0,     v_max,  "half range: 0 → max"),
+            ]
+
+        all_results = {}  # {label: DataFrame}
+
+        for v_start, v_end, label in scenarios:
+            print(f"\n{self.CYAN}=== Settling test: {label} ==={self.RESET}")
+
+            # move to start position and wait for settling
+            print(f"  Moving to start position {v_start} V ...")
+            self.master_diode.set_piezo(value=v_start, unit="V", silent=True)
+            time.sleep(2.0)  # wait for laser to settle at start
+
+            # execute the step
+            print(f"  Step to {v_end} V – starting measurements ...")
+            t_step = time.perf_counter()
+            self.master_diode.set_piezo(value=v_end, unit="V", silent=True)
+
+            # measure settling
+            records = []
+            for i in range(n_measurements):
+                print(f"Messung Nr. {i}")
+                t = time.perf_counter() - t_step
+
+                master_data = self.master_diode.read_laser(device_read_time=False)
+                amplif_data = self.amplifier_diode.read_laser(device_read_time=False)
+
+                records.append({
+                    'time_s':               t,
+                    'master_current_A':     master_data['current_A'],
+                    'master_temperature_C': master_data['temperature_C'],
+                    'master_power':         master_data['power'],
+                    'amplif_current_A':     amplif_data['current_A'],
+                    'amplif_temperature_C': amplif_data['temperature_C'],
+                    'amplif_power':         amplif_data['power'],
+                })
+                time.sleep(sleep)
+
+            df = pd.DataFrame(records).set_index('time_s')
+            all_results[label] = df
+            print(f"  {self.GREEN}Done. {len(df)} measurements over {df.index[-1]:.1f} s{self.RESET}")
+
+        if plot:
+            self._plot_settling(all_results, scenarios, save_path=save_path)
+
+        return all_results
     
+    def _plot_settling(self, all_results: dict, scenarios: list, save_path: str = None): 
+        import matplotlib.pyplot as plt
+        from matplotlib.gridspec import GridSpec
+
+        n_scenarios = len(scenarios)
+        fig = plt.figure(figsize=(14, 4 * n_scenarios))
+        gs = GridSpec(n_scenarios, 3, figure=fig, hspace=0.5, wspace=0.35)
+
+        col_titles = ['Current [A]', 'Temperature [°C]', 'Power']
+
+        for row, (v_start, v_end, label) in enumerate(scenarios):
+            df = all_results[label]
+
+            axes = [fig.add_subplot(gs[row, col]) for col in range(3)]
+
+            # current
+            axes[0].plot(df.index, df['master_current_A'],
+                        color='steelblue', label='master')
+            axes[0].plot(df.index, df['amplif_current_A'],
+                        color='tomato', label='amplif', linestyle='--')
+            axes[0].axhline(df['master_current_A'].iloc[-1],
+                            color='steelblue', linewidth=0.5, linestyle=':')
+            axes[0].axhline(df['amplif_current_A'].iloc[-1],
+                            color='tomato', linewidth=0.5, linestyle=':')
+
+            # temperature
+            axes[1].plot(df.index, df['master_temperature_C'],
+                        color='steelblue', label='master')
+            axes[1].plot(df.index, df['amplif_temperature_C'],
+                        color='tomato', label='amplif', linestyle='--')
+
+            # power
+            axes[2].plot(df.index, df['master_power'],
+                        color='steelblue', label='master')
+            axes[2].plot(df.index, df['amplif_power'],
+                        color='tomato', label='amplif', linestyle='--')
+
+            for col, ax in enumerate(axes):
+                ax.set_xlabel('time [s]')
+                ax.legend(fontsize=8)
+                ax.grid(True, linestyle=':', alpha=0.6)
+                if col == 0:
+                    ax.set_ylabel(f"{label}\n\n{col_titles[col]}", fontsize=9)
+                else:
+                    ax.set_ylabel(col_titles[col], fontsize=9)
+                if row == 0:
+                    ax.set_title(col_titles[col], fontsize=10)
+
+        fig.suptitle('Laser settling after piezo step', fontsize=13, y=1.01)
+        plt.tight_layout()
+
+        if save_path: 
+            fig.savefig(save_path, dpi=150, bbox_inches='tight')
+            print(f"{self.GREEN}Plot gespeichert: {save_path}{self.RESET}")
+
+        plt.show(block=False)
+        plt.pause(1)
+        plt.close(fig)
 
     def drift_monitor(self):
         pass
@@ -277,8 +399,25 @@ if __name__ == "__main__":
 
     r_man = LIFManager()
 
+    print("\n--- read_state() Test ---")
     readout = r_man.read_state()
-    print(readout)
+    for key, value in readout.items(): 
+        print(f"  {key}: {value}")
+
+    def SETTLING_TEST(): 
+        try:
+            r_man.laser_on()
+            time.sleep(5)
+            results = r_man.measure_laser_settling(
+                n_measurements=30,
+                sleep=0.1,
+                plot=True, 
+                save_path="/home/erikh/Schreibtisch/Studium/Nextcloud Manz/laser_settling/laser_settling"
+            )
+        finally:
+            r_man.laser_off()
+    
+    SETTLING_TEST()
 
     def test_scan_piezo():
         # scan_list = su.get_scan_list_stepped(step=3,

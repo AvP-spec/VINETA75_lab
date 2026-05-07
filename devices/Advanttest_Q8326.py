@@ -46,11 +46,15 @@ class Q8326(BaseDevice):
         self.name = self.DEVICE_DIKT[self.hwid]
         self.port = self.hwid
         self.time_sleep = 0.05 # might work with 0.01
+        self.stb_available = None
 
 
     def after_connect(self, silent=True):
         print("Advantest_Q8326 after_connect()")
-        self.connection.clear()
+        try: 
+            self.connection.clear()
+        except pyvisa.errors.VisaIOError as e: 
+            print(f"[{self.name}] clear() nicht unterstützt, übersprungen: {e}")
         time.sleep(self.time_sleep)
         self.send_command("M1")      #"Sample Mode HOLD",
         self.flush_buffer_GPIB(silent=silent)
@@ -91,9 +95,21 @@ class Q8326(BaseDevice):
             return f"{self.RED}Unknown State{self.RESET}"
 
         self.connection.write(cmd)
-        if slow: time.sleep(self.time_sleep)
-        status_byte = self.connection.stb
-        status = get_status_msg(status_byte)
+        if slow: 
+            time.sleep(self.time_sleep)
+
+        try:
+            status_byte = self.connection.stb
+            if self.stb_available is None:
+                self.stb_available = True
+        except pyvisa.errors.VisaIOError:
+            if self.stb_available is None:
+                self.stb_available = False
+                print(f"[{self.name}] {self.YELLOW}stb nicht verfügbar "
+                    f"– Syntaxfehler-Erkennung deaktiviert{self.RESET}")
+            status_byte = 0
+            status = f"{self.YELLOW}stb n/a{self.RESET}"
+
         print(f"[{self.name}] send_command({self.BLUE}{cmd}: {cmd_name}"
               f"{self.RESET}) = {status}, {status_byte=}")
         
@@ -234,19 +250,24 @@ class Q8326(BaseDevice):
             self.connection.control_ren(6)
             ## dublicate of the command if code 6 is not correct 
             ## self.connection.control_ren(pyvisa.constants.VI_GPIB_REN_ADDRESS_GTL)
-        except Exception as e:
-            print(f"[{self.name}] {self.RED}Go To Local error:{self.RESET} {e}")
+        except pyvisa.errors.VisaIOError as e:
+            print(f"[{self.name}] {self.YELLOW}Go To Local nicht unterstützt, "
+                  f"übersprungen{self.RESET}")
         return BaseDevice.disconnect(self)
 
 if __name__ == "__main__":
     os.system('cls' if os.name == 'nt' else 'clear')
-    print("hallo")
+    print("starting Advanttest_Q8326.py ...")
 
     wlm = Q8326()
     wlm.print_connections()
     wlm.connect()
     print(wlm.connection.query("E"))
-    print(wlm.connection.stb)
+
+    try: 
+        print(wlm.connection.stb)
+    except pyvisa.errors.VisaIOError:
+        print("stb nicht verfügbar")
     
     print("----- averaged measurements -----")
     print(f"{wlm.average=}")

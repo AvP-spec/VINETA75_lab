@@ -1,6 +1,6 @@
 ''' 
 v02->v03  working version
-re-writing PilotPZ500 and set_value() - archetectur change
+re-writing PilotPZ500 and set_value() - architecture change
 implemented *OPC? instead of time.sleep(0.1)
 '''
 
@@ -175,6 +175,90 @@ class PilotPZ(BaseDevice):
 
         return self
     
+    def read_limits(self):
+        if self.connection is None:
+            print(f"{self.RED}read_limits() aborted: Device not connected{self.RESET}")
+            return
+        print(f"\n=== {self.GREEN} read_limits() {self.RESET}===")
+        I_max = self.read_value(":Laser:ILIMit? MAX")
+        I_min = self.read_value(":Laser:ILIMit? MIN")
+        # resolution is from manual
+        print(
+            f"{self.MAGENTA} current limits {self.RESET} \n"
+            f' "limits": {{"max":{I_max}, "min": {I_min}, "unit": "[A]", "resolution": 0.1E-3}}'
+        )
+        T_max = self.read_value(":TEC:TEMPerature:Set? MAX")
+        T_min = self.read_value(":TEC:TEMPerature:LIMit:MIN?")
+        print(
+            f"{self.MAGENTA} temperature limits {self.RESET} \n"
+            f' "limits": {{"max":{T_max}, "min": {T_min}, "unit": "[C]", "resolution": 1E-3}}'
+        )
+        if self.piezo:
+            v_max = self.read_value(":Piezo:OFFSet? MAX")
+            v_min = self.read_value(":Piezo:OFFSet? MIN")
+            print(
+                f"{self.MAGENTA} piezo limits {self.RESET} \n"
+                f' "limits": {{"max":{v_max}, "min": {v_min}, "unit": "[V]", "resolution": 1E-3}}'
+            )
+        print("="*50)
+        return self
+    
+
+    def read_actual_parameters(self):
+        if self.connection is None:
+            print(f"{self.RED}read_actual_parameters() aborted: Device not connected{self.RESET}")
+            return self
+        print(f"\n=== {self.GREEN} read_actual_parameters() [{self.name}] {self.RESET}===")
+        print(f"actual status      = {self.read_status()}")
+        print(f"actual current     = {self.read_current()}")
+        print(f"actual temperature = {self.read_temperature()}")
+        print(f"actual power       = {self.read_power()}")
+        print(f"actual pdiode      = {self.read_pdiode_current()}")
+        print("="*50)
+        return self
+    
+
+    def scan_laser_parameters(self, silent=False):
+        if self.connection is None:
+            print(f"{self.RED}scan_laser_parameters() aborted: Device not connected{self.RESET}")
+            return self
+        print(f"\n=== {self.GREEN} scan_laser_parameters() [{self.name}] {self.RESET}===")
+        self.send_command(":Laser:STATus?", silent=silent)
+        self.send_command(":Laser:POLarity?", silent=silent)
+        print(f"{self.MAGENTA} Current {self.RESET}")
+        print("actual current     =", self.read_current(silent=silent))
+        print("actual set current =", self.read_setcurrent())
+        self.send_command(":SYSTem:BAUDrate?", silent=silent)
+        self.send_command(":Laser:ILIMit? MIN", silent=silent)
+        self.send_command(":Laser:ILIMit? MAX", silent=silent)
+        self.send_command(":Laser:MODe?", silent=silent)
+        self.send_command(":Laser:CURRent:Set?", silent=silent)
+        self.send_command(":Laser:POWer?", silent=silent)
+        self.send_command(":Laser:TEC:Required?", silent=silent)
+        self.send_command("Laser:IU:ENAble?", silent=silent)
+        self.send_command(":PDiode:CURRent?", silent=silent)
+        self.send_command(":CCoupling:ENAble?", silent=silent)
+        print(f"{self.MAGENTA} Temperature {self.RESET}")
+        print("actual temperature =", self.read_temperature())
+        self.send_command(":TEC:ENAble?", silent=silent)
+        self.send_command(":TEC:ILIMit? MAX", silent=silent)
+        self.send_command(":TEC:ILIMit? MIN", silent=silent)
+        self.send_command(":TEC:TEMPerature:Set? MAX", silent=silent)
+        self.send_command(":TEC:TEMPerature:Set? MIN", silent=silent)
+        self.send_command(":TEC:TEMPerature:LIMit:MAX?", silent=silent)
+        self.send_command(":TEC:TEMPerature:LIMit:MIN?", silent=silent)
+        self.send_command(":TEC:WATch:ENAble?", silent=silent)
+        if self.piezo:
+            print(f"{self.MAGENTA} Piezo {self.RESET}")
+            print("actual piezo offset =", self.read_piezo())
+            self.send_command(":Piezo:ENAble?", silent=silent)
+            self.send_command(":Piezo:OFFSet?", silent=silent)
+            self.send_command(":Piezo:OFFSet? MAX", silent=silent)
+            self.send_command(":Piezo:OFFSet? MIN", silent=silent)
+            self.send_command(":Piezo:FREQuency:GENerator?", silent=silent)
+        print(f"=== {self.GREEN} scan_laser_parameters() ended {self.RESET}===")
+        return self
+    
 
     ###### read functions ######
     def read_current(self, silent=True):
@@ -207,6 +291,10 @@ class PilotPZ(BaseDevice):
     def read_laser(self, device_read_time=True):
         '''read all Pilot state parameters'''
         t0 = time.perf_counter()
+
+        status = self.read_status()
+        set_current_raw = float(self.read_setcurrent())
+
         data = {
             "current_A": float(self.read_current()),
             "photo_diode_current_A": float(self.read_pdiode_current()),
@@ -214,18 +302,23 @@ class PilotPZ(BaseDevice):
             "set_current_A": float(self.read_setcurrent()),
             "set_temperature_C": float(self.read_settemperature()),
             "power": float(self.read_power()),
-            "laser_mode": self.read_mode()
+            "laser_mode": self.read_mode(),
+            "laser_status": status
         }
+
+        # die werte sind immer negativ, aber das ist keine Problem
+        # if set_current_raw < 0:
+        #     print(f"{self.YELLOW}[{self.name}] set_current_A={set_current_raw} "
+        #           f"ist negativ (Gerätekonvention). Laser status: {status}{self.RESET}")
+
         if self.piezo: 
-            data["piezo_off_set_V"] = self.read_piezo()
+            data["piezo_off_set_V"] = float(self.read_piezo())
 
         dt = time.perf_counter() - t0 
-
         result = {}
         if device_read_time:
             result.update( {"time_s": t0,
                             "duration_s": dt })
-            
         result.update(data)
     
         return result
@@ -333,7 +426,7 @@ class PilotPZ(BaseDevice):
         plt.ioff()
         print("laser_monitor() finished. Close the plot window to exit.")
         df = pd.DataFrame(results)
-        plt.show(block=True)
+        plt.show(block=True)        # <-- wartet auf Schließen des Fensters
         df.set_index('time_s', inplace=True)
 
         return df
@@ -453,113 +546,44 @@ class PilotPC4000(PilotPZ):
         }
 
 
+
 if __name__ == "__main__":
     os.system('cls' if os.name == 'nt' else 'clear')
     master_diode = PilotPZ500()
     master_diode.connect(silent=True)
     amplifier_diode = PilotPC4000()
     amplifier_diode.connect()
-    print()
-
-
-    def read_limits(laser:object):
-        if laser.connection is None:
-            print("read_limits() aborted: Device not connected")
-            return
-        print(f"\n=== {laser.GREEN} scan_laser_parameters() {laser.RESET}===")
-        I_max = laser.read_value(":Laser:ILIMit? MAX")
-        I_min = laser.read_value(":Laser:ILIMit? MIN")
-        # resolution is from manual
-        print(
-            f"{laser.MAGENTA} current limits {laser.RESET} \n"
-            f' "limits": {{"max":{I_max}, "min": {I_min}, "unit": "[A]", "resolution": 0.1E-3}}'
-        )
-        T_max = laser.read_value(":TEC:TEMPerature:Set? MAX")
-        T_min = laser.read_value(":TEC:TEMPerature:LIMit:MIN?")
-        print(
-            f"{laser.MAGENTA} temperature limits {laser.RESET} \n"
-            f' "limits": {{"max":{T_max}, "min": {T_min}, "unit": "[C]", "resolution": 1E-3}}'
-        )
-        if laser.piezo:
-            v_max = laser.read_value(":Piezo:OFFSet? MAX")
-            v_min = laser.read_value(":Piezo:OFFSet? MIN")
-            print(
-                f"{laser.MAGENTA} piezo limits {laser.RESET} \n"
-                f' "limits": {{"max":{v_max}, "min": {v_min}, "unit": "[V]", "resolution": 1E-3}}'
-            )
-
-        print("="*100)
-
-
-    read_limits(master_diode)
-    read_limits(amplifier_diode)
+    
+    master_diode.read_limits()
+    amplifier_diode.read_limits()
+    master_diode.set_defoults()
+    amplifier_diode.set_defoults()
     print(master_diode.read_laser())
     print(amplifier_diode.read_laser())
+
 
     # print(master_diode.laser_monitor_df(n_measurements=5))
     # print(amplifier_diode.laser_monitor_df(n_measurements=5))
 
+
     def test_laser_monitor(
-            master_diode:object=amplifier_diode,
+            master_diode:object=master_diode,
             amplifier_diode:object=amplifier_diode,
             ):
-        master_diode.switch_on()
-        amplifier_diode.switch_on()
-        # print(master_diode.laser_monitor(n_measurements=20,
-        #                                 plot=True))
-        print(amplifier_diode.laser_monitor(n_measurements=20,
+        try:
+            master_diode.switch_on()
+            amplifier_diode.switch_on()
+            # print(master_diode.laser_monitor(n_measurements=20,
+            #                                 plot=True))
+            print(amplifier_diode.laser_monitor(n_measurements=20,
                                 plot=True))
-        master_diode.switch_off()
-        amplifier_diode.switch_off()
+        finally: 
+            amplifier_diode.switch_off()
+            master_diode.switch_off()
+            print("Laser sicher ausgeschaltet")
+        
+    # test_laser_monitor()
 
-    test_laser_monitor()
-
-
-
-
-    def scan_laser_parameters(laser:object, silent=False):
-        print(f"=== {laser.GREEN} scan_laser_parameters() {laser.RESET}===")
-        laser.send_command(":Laser:STATus?")
-        laser.send_command(":Laser:POLarity?")
-        ## laser current 
-        print(f"{laser.MAGENTA} Current {laser.RESET}")
-        print("actual current =", laser.read_current(silent=silent))
-        print("actual set current = ", laser.read_setcurrent())
-        laser.send_command(":SYSTem:BAUDrate?", silent=silent)
-        laser.send_command(":Laser:ILIMit? MIN", silent=silent)
-        laser.send_command(":Laser:ILIMit? MAX", silent=silent)
-        laser.send_command(":Laser:MODe?", silent=silent)
-        laser.send_command(":Laser:CURRent:Set?", silent=silent)
-        laser.send_command(":Laser:POWer?", silent=silent)
-        laser.send_command(":Laser:TEC:Required?")
-        laser.send_command("Laser:IU:ENAble?")
-        laser.send_command(":PDiode:CURRent?")
-        laser.send_command(":CCoupling:ENAble?")
-        ## laser temperature
-        print(f"{laser.MAGENTA} temperature {laser.RESET}")
-        print("actual temperature =", laser.read_temperature())
-        laser.send_command(":TEC:ENAble?")
-        laser.send_command(":TEC:ILIMit? MAX")
-        laser.send_command(":TEC:ILIMit? MIN")
-        laser.send_command(":TEC:TEMPerature:Set? MAX")
-        laser.send_command(":TEC:TEMPerature:Set? MIN")
-        laser.send_command(":TEC:TEMPerature:LIMit:MAX?")
-        laser.send_command(":TEC:TEMPerature:LIMit:MIN?")
-        laser.send_command(":TEC:WATch:ENAble?")
-        ## piezo
-        if laser.piezo:
-            print(f"{laser.MAGENTA} Piezo {laser.RESET}")
-            print("actual piezo offset =", laser.read_piezo())
-            laser.send_command(":Piezo:ENAble?")
-            laser.send_command(":Piezo:OFFSet?")
-            laser.send_command(":Piezo:OFFSet? MAX")
-            laser.send_command(":Piezo:OFFSet? MIN")
-            laser.send_command(":Piezo:FREQuency:GENerator?")
-            print(f"=== {laser.GREEN} scan_laser_parameters() ended {laser.RESET}===")
-            print()
-        return None
-    
-    # scan_laser_parameters(master_diode)
 
     def test_set_functions(laser:object):
         print(f"=== {laser.GREEN} test_set_functions {laser.RESET}===")
@@ -575,16 +599,19 @@ if __name__ == "__main__":
         print(f"=== {laser.GREEN} test_set_functions() ended {laser.RESET}===")
         print()
 
-   # test_set_functions(master_diode)
+    # test_set_functions(master_diode)
+    # test_set_functions(amplifier_diode)
 
-    def read_actual_parameters(laser:object):
-        print("actual status = ", laser.read_status())
-        print("actual current = ", laser.read_current())
-        print("actual temperature = ", laser.read_temperature())
-        print("actual power = ", laser.read_power())
-        print("actual temperature = ", laser.read_pdiode_current())
+    # master_diode.scan_laser_parameters()
+    # amplifier_diode.scan_laser_parameters()
 
-    # read_actual_parameters(master_diode)
+    # master_diode.read_actual_parameters()
+    # amplifier_diode.read_actual_parameters()
+
+    # master_diode.switch_laser_mode()
+    # print(master_diode.read_mode())
+    # master_diode.switch_laser_mode()
+
 
     def test_switch_functions(laser:object):
         print(f"=== {laser.GREEN} test_switch_functions {laser.RESET}===")
@@ -611,8 +638,11 @@ if __name__ == "__main__":
         results = laser.laser_monitor(n_measurements=5)
         laser.switch_off()
         print("\n", results)
-
     # test_laser_monitor(master_diode)
+
+    # master_diode.set_piezo(0, "V")
+    # print(master_diode.read_piezo())
+    # master_diode.set_defoults()
 
     master_diode.disconnect()
     amplifier_diode.disconnect()

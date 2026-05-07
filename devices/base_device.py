@@ -16,7 +16,8 @@ from utils.terminal_styler import TerminalColours
 class BaseDevice(TerminalColours):
     DEVICE_DIKT = {
         # GPIB: 
-        "USB0::0x03EB::0x2065::GPIB_06_4423030363035131A1C0::INSTR": "wavelength meter",
+        "USB0::0x03EB::0x2065::GPIB_06_4423030363035131A1C0::INSTR": "wavelength meter",    # hexadezimal
+        "USB0::1003::8293::GPIB_06_4423030363035131A1C0::0::INSTR": "wavelength meter",     # dezimal
         # VID:PID fallback für Messgeräte ohne Seriennummer: 
         "VID:PID = 0403:6001": "Pilot series", 
         # Arduino per Seriennummer: 
@@ -30,7 +31,7 @@ class BaseDevice(TerminalColours):
     def __init__(self):
         self.rm = None
         try:
-            self.rm = pyvisa.ResourceManager('@py')
+            self.rm = pyvisa.ResourceManager()
         except Exception:
             print(self.RED)
             print("BaseDevice init Error, pyvisa.ResourceManager() not created")
@@ -277,3 +278,6 @@ if __name__ == "__main__":
 
     dvc.print_connections()
     dvc.print_coulors()
+
+    # resources = dvc.rm.list_resources()
+    # print(resources)
