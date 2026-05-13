@@ -16,8 +16,10 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from devices.Advanttest_Q8326 import Q8326
-from devices.pilot_pz import PilotPZ500
-from devices.pilot_pz import PilotPC4000
+from devices.pilot_pz import PilotPZ500, PilotPC4000
+from devices.function_generator import FunctionGenerator
+from devices.lock_in_amplifier import LockInAmplifier
+from devices.daq import DAQ
 import utils.scan_utils as su
 from utils.terminal_styler import TerminalColours
 
@@ -30,9 +32,17 @@ class LIFManager(TerminalColours):
         self.amplifier_diode = PilotPC4000()
         self.wlm = Q8326()
         self.scope = None # not yet implemented
+        self.fg = FunctionGenerator()
+        self.lia = LockInAmplifier()
+        self.daq = DAQ()
+
         self._connect_device(self.master_diode, device_type="COM")
         self._connect_device(self.amplifier_diode)
         self._connect_device(self.wlm, device_type="GPIB")
+        self._connect_device(self.fg, device_type="COM")
+        self._connect_device(self.lia, device_type="COM")
+        self.daq.connect()
+         
 
 
     def _connect_device(self, device, device_type:str="COM"):
@@ -41,6 +51,8 @@ class LIFManager(TerminalColours):
             print(f"{self.RED}")
             print(f"LIFManager._connect_device(): device is None ")
             print(f"{self.RESET}")
+
+            return
 
         print(f"\n LIFManager connecting: "
               f"{self.BLUE}{device.name}{self.RESET}")
@@ -52,9 +64,14 @@ class LIFManager(TerminalColours):
 
     def disconnect_all(self):
         print(f"\n {self.CYAN}LIFManager disconnect{self.RESET}")
+
         self.master_diode.disconnect()
         self.amplifier_diode.disconnect()
         self.wlm.disconnect()
+        self.fg.disconnect()
+        self.lia.disconnect()
+        self.daq.disconnect()
+
         return self
     
 
@@ -92,6 +109,18 @@ class LIFManager(TerminalColours):
         self.amplifier_diode.switch_off()
         self.master_diode.switch_off()
         return self
+    
+    def aom_on(self, frequency_Hz: float = 1000.0, 
+               amplitude_V: float = 1.0, silent = True): 
+        self.fg.set_frequency(frequency_Hz, silent=silent)
+        self.fg.set_amplitude(amplitude_V, silent=silent)
+        self.fg.set_waveform("SIN", silent=silent)
+        self.fg.output_on(silent=silent)
+        return self
+    
+    def aom_off(self, silent=True): 
+        self.fg.output_off(silent=silent)
+        return self
 
     @staticmethod
     def _label_keys(dct:dict, label:str):
@@ -99,6 +128,7 @@ class LIFManager(TerminalColours):
         Adds label to all keys in the dictionary.
         '''
         return {f"{label}_{k}": v for k, v in dct.items()}
+    
 
     def read_state(self, 
                    silent=True, # only for wlm
@@ -106,34 +136,39 @@ class LIFManager(TerminalColours):
                    ):
         '''
         Read laser drivers and wavemeter in parallel.
+        Order: wlm, master, amplif, lia, daq
         '''
         start_time = time.perf_counter()
 
         ### container to form the oreder of the output
         ### [wlm, master, amplif]
-        task_results = [None, None, None]
+        task_results = [None]*5
 
         # data = {}  
         def worker(index, label, method, kwargs):
             try:
                 readout = method(**kwargs)
-                labeled = self._label_keys(readout, label)
-                task_results[index] = labeled
+                task_results[index] = self._label_keys(readout, label)
                 # data.update(labeled)
             except Exception as e:
                 task_results[index] = {f"{label}_error": str(e)}
                 # data[f"{label}_error"] = str(e)
 
         tasks = [
-             (0, 'wlm', self.wlm.read, 
-             {'silent': silent, 
-              'device_read_time': device_read_time}),
+            (0, 'wlm', self.wlm.read, 
+             {'silent': silent, 'device_read_time': device_read_time}),
 
-             (1, 'master', self.master_diode.read_laser, 
+            (1, 'master', self.master_diode.read_laser, 
              {'device_read_time': device_read_time}),
 
-             (2, 'amplif', self.amplifier_diode.read_laser, 
+            (2, 'amplif', self.amplifier_diode.read_laser, 
              {'device_read_time': device_read_time})
+
+            (3, 'lia', self.lia.read_signal, 
+             {'silent': silent, 'device_read_time': device_read_time})
+
+            (4, 'daq', self.daq.read_lif_signal, 
+             {'silent': silent, 'device_read_time': device_read_time})
         ]
 
         threads = []
@@ -166,8 +201,8 @@ class LIFManager(TerminalColours):
                    v_unit:str="[V]", # piezo voltage units 
                    n_wlm:int=5, # number of wavelength measurements
                    zigzag:bool=True,
-                   device_read_time=False,
-                   silent=True # only for wlm in current implementation
+                   # device_read_time=False,
+                   silent: bool = True # only for wlm in current implementation
                     ):
     
         '''
@@ -207,50 +242,58 @@ class LIFManager(TerminalColours):
                     zigzag=zigzag,
                     )
 
-        # result = []
-        # t0 = time.perf_counter()
-        # i = 0
-        # for v in v_list:
-        #     i += 1
-        #     print(f"meausurement {i} from {len(v_list)}")
-        #     self.master_diode.set_piezo(value=v, unit="V", silent=True)
-        #     data = [self.wlm.read() for i in range(n_wlm)]
-        #     wls = [key['wavelength'] for key in data]
-        #     times = [key['time_s'] for key in data]
-        #     result.append({
-        #         'time_s': min(times) - t0,
-        #         'duration_s': max(times) - min(times),
-        #         'pieso_V': v,
-        #         'wavelength': sum(wls) / len(wls),
-        #         'wls_err' : (max(wls) - min(wls))/2,
-        #         'wls_std' : np.std(wls) if n_wlm > 2 else 0
-        #     })
-        #     print(f"piezo offset {v} V, wavelength {result[-1]['wavelength']}")
-
         result = []
         t0 = time.perf_counter()
-        i = 0
-        for v in v_list:
-            i += 1
-            print(f"meausurement {i} from {len(v_list)}, piezo {v} [V]", end=" nm = ")
+
+        for i, v in enumerate(v_list): 
+            print(f"  point {i+1}/{len(v_list)}, piezo={v} V", end=" → ")
             self.master_diode.set_piezo(value=v, unit="V", silent=True)
-            data = self.read_state(
-                   silent=silent, # only for wlm
-                   device_read_time=device_read_time, # extra time-stemps
-                   )
-            data['start_time'] -= t0
-            print(float(data['wlm_wavelength'])*1E9)
-            result.append(data) 
+            states = [self.read_state(silent=silent) for _ in range(n_wlm)]
+
+            wls = [s['wlm_wavelength'] for s in states]
+            wl_mean = sum(wls) / n_wlm
+            wl_std = float(np.std(wls)) if n_wlm > 2 else 0.0
+            wl_err = (max(wls) - min(wls)) / 2
+
+            print(f"wavelength = {wl_mean*1E9:.4f} nm")
+
+            last = states[-1]
+
+            record = {
+                'time_s':                   time.perf_counter() - t0,
+                'piezo_V':                  v,
+                'wl_mean_m':                wl_mean,
+                'wl_std_m':                 wl_std,
+                'wl_err_m':                 wl_err,
+                'master_current_A':         last['master_current_A'],
+                'master_temperature_C':     last['master_temperature_C'],
+                'master_power':             last['master_power'],
+                'master_piezo_off_set_V':   last['master_piezo_off_set_V'],
+                'amplif_current_A':         last['amplif_current_A'],
+                'amplif_temperature_C':     last['amplif_temperature_C'],
+                'amplif_power':             last['amplif_power'],
+                'daq_lif_signal_V':         last.get('daq_lif_signal_V'),
+                'daq_lif_std_V':            last.get('daq_lif_std_V'),
+                'lia_R':                    last.get('lia_R'),
+                'lia_X':                    last.get('lia_X'),
+                'lia_Y':                    last.get('lia_Y'),
+                'lia_theta_deg':            last.get('lia_theta_deg'),
+            }
+
+        result.append(record)
 
 
+        df = pd.DataFrame(result)
+        print(f"\n{self.GREEN}scan_piezo() finished: "
+              f"{len(df)} points in {df['time_s'].iloc[-1]:.1f} s{self.RESET}")
+        print(df.to_string())
+        return df
 
-        print(f"{self.GREEN} scan finished {self.RESET}")
-        return pd.DataFrame(result)
 
 
     def measure_laser_settling(self, 
                                scenarios: list = None, 
-                               n_measurements: int = 30, 
+                               n_measurements: int = 15, 
                                sleep: float = 0.1,
                                plot: bool = True, 
                                save_path: str = None,
@@ -293,13 +336,17 @@ class LIFManager(TerminalColours):
                 amplif_data = self.amplifier_diode.read_laser(device_read_time=False)
 
                 records.append({
-                    'time_s':               t,
-                    'master_current_A':     master_data['current_A'],
-                    'master_temperature_C': master_data['temperature_C'],
-                    'master_power':         master_data['power'],
-                    'amplif_current_A':     amplif_data['current_A'],
-                    'amplif_temperature_C': amplif_data['temperature_C'],
-                    'amplif_power':         amplif_data['power'],
+                    'time_s':                    t,
+                    'master_current_A':          master_data['current_A'],
+                    'master_set_current_A':      master_data['set_current_A'],
+                    'master_temperature_C':      master_data['temperature_C'],
+                    'master_set_temperature_C':  master_data['set_temperature_C'],
+                    'master_power':              master_data['power'],
+                    'amplif_current_A':          amplif_data['current_A'],
+                    'amplif_set_current_A':      amplif_data['set_current_A'],
+                    'amplif_temperature_C':      amplif_data['temperature_C'],
+                    'amplif_set_temperature_C':  amplif_data['set_temperature_C'],
+                    'amplif_power':              amplif_data['power'],
                 })
                 time.sleep(sleep)
 
@@ -328,20 +375,18 @@ class LIFManager(TerminalColours):
             axes = [fig.add_subplot(gs[row, col]) for col in range(3)]
 
             # current
-            axes[0].plot(df.index, df['master_current_A'],
+            axes[0].plot(df.index, df['master_current_A']-df['master_set_current_A'],
                         color='steelblue', label='master')
-            axes[0].plot(df.index, df['amplif_current_A'],
+            axes[0].plot(df.index, df['amplif_current_A']-df['amplif_set_current_A'],
                         color='tomato', label='amplif', linestyle='--')
-            axes[0].axhline(df['master_current_A'].iloc[-1],
-                            color='steelblue', linewidth=0.5, linestyle=':')
-            axes[0].axhline(df['amplif_current_A'].iloc[-1],
-                            color='tomato', linewidth=0.5, linestyle=':')
+            axes[0].axhline(0, color='black', linewidth=0.8, linestyle='-')
 
             # temperature
-            axes[1].plot(df.index, df['master_temperature_C'],
+            axes[1].plot(df.index, df['master_temperature_C']-df['master_set_temperature_C'],
                         color='steelblue', label='master')
-            axes[1].plot(df.index, df['amplif_temperature_C'],
+            axes[1].plot(df.index, df['amplif_temperature_C']-df['amplif_set_temperature_C'],
                         color='tomato', label='amplif', linestyle='--')
+            axes[1].axhline(0, color='black', linewidth=0.8, linestyle='-')
 
             # power
             axes[2].plot(df.index, df['master_power'],
@@ -371,8 +416,52 @@ class LIFManager(TerminalColours):
         plt.pause(1)
         plt.close(fig)
 
-    def drift_monitor(self):
-        pass
+
+
+
+    def drift_monitor(self, duration_s=60, interval_s=5, silent=False):
+
+        print(f"Starting Drift Monitor for {duration_s} s ...")
+
+        drift_records = []
+        t_start = time.perf_counter()
+
+        n_steps = int(duration_s / interval_s)
+
+        try: 
+            for i in range(n_steps): 
+                t_current = time.perf_counter() - t_start
+
+                wlm_data = self.wlm.read(silent=True, device_read_time=True)
+                wavelength = wlm_data['wavelength']
+
+                lia_data = self.lia.read_signal(silent=True, device_read_time=True)
+                intensity = lia_data['R']
+
+                laser_data = self.laser.read_laser(device_read_time=False)
+
+                record = {
+                    "time_s": t_current, 
+                    "wavelength_nm": wavelength, 
+                    "lif_intensity_R": intensity, 
+                    "laser_current_A": laser_data["current_A"], 
+                    "laser_temp_C": laser_data["temperature_C"]
+                }
+
+                drift_records.append(record)
+
+                if not silent: 
+                    print(f"t = {t_current:.1f} s | $\lambda$ = {wavelength:.5f} nm | R = {intensity:.3e}")
+
+                time.sleep(interval_s)
+
+        except KeyboardInterrupt: 
+            print("Drift monitor stopped by user.")
+
+        df_drift = pd.DataFrame(drift_records)
+        df_drift.set_index("time_s", inplace=True)
+
+        return df_drift
 
 
 
@@ -382,6 +471,14 @@ if __name__ == "__main__":
     # print(f"{data_path=}")
     # print(f"{current_file=}")
     # print(f"{project_root=}")
+
+    r_man = LIFManager()
+
+    print("\n--- read_state() Test ---")
+    readout = r_man.read_state()
+    for key, value in readout.items(): 
+        print(f"  {key}: {value}")
+    
 
     def test_label_keys():
         dct = {
@@ -397,19 +494,39 @@ if __name__ == "__main__":
    # test_label_keys()
 
 
-    r_man = LIFManager()
+    def test_laser():
+        r_man.laser_on()
+        time.sleep(5)
+        readout = r_man.read_state()
+        for key, value in readout.items(): 
+            print(f"  {key}: {value}")
+        r_man.laser_off()
 
-    print("\n--- read_state() Test ---")
-    readout = r_man.read_state()
-    for key, value in readout.items(): 
-        print(f"  {key}: {value}")
+    # test_laser()
+
+
+    def test_scan_piezo():
+        try: 
+            r_man.laser_on()
+            time.sleep(5)
+            df = r_man.scan_piezo(
+                v_step=3,
+                v_unit="[V]",
+                n_wlm=5,
+                zigzag=True,
+            )
+        finally: 
+            r_man.laser_off()
+        
+    # test_scan_piezo()
+
 
     def SETTLING_TEST(): 
         try:
             r_man.laser_on()
             time.sleep(5)
             results = r_man.measure_laser_settling(
-                n_measurements=30,
+                n_measurements=15,
                 sleep=0.1,
                 plot=True, 
                 save_path="/home/erikh/Schreibtisch/Studium/Nextcloud Manz/laser_settling/laser_settling"
@@ -417,15 +534,46 @@ if __name__ == "__main__":
         finally:
             r_man.laser_off()
     
-    SETTLING_TEST()
+    # SETTLING_TEST()
 
-    def test_scan_piezo():
-        # scan_list = su.get_scan_list_stepped(step=3,
-        #                          zigzag=True)
-        df = r_man.scan_piezo(v_step=3, v_unit="[V]")
-        print(df)
-        
-    # test_scan_piezo()
+
+    def SCAN_AND_SETTLING_TEST():
+        try:
+            r_man.laser_on()
+            time.sleep(5)
+            df = r_man.scan_piezo(
+                v_step=3,
+                v_unit="[V]",
+                n_wlm=5,
+                zigzag=True,
+            )
+            results = r_man.measure_laser_settling(
+                n_measurements=30,
+                sleep=0.1,
+                plot=True,
+                save_path="/home/erikh/Schreibtisch/Studium/settling_test.png"
+            )
+        finally:
+            r_man.laser_off()
+            
+    # SCAN_AND_SETTLING_TEST()
+
+
+    def LIF_SCAN(): 
+        try: 
+            r_man.laser_on()
+            r_man.aom_on(frequency_Hz=1000.0, amplitude_V=1.0)
+            time.sleep(5)
+            df = r_man.scan_piezo(v_step=1, n_wlm=5)
+        finally: 
+            r_man.aom_off()
+            r_man.laser_off()
+        return df
+    
+    # df_lif = LIF_SCAN()
+    # print(df_lif)
+   
+
 
     # master_readout = r_man.master_diode.read_laser()
     # print(master_readout)

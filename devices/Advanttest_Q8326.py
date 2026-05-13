@@ -83,6 +83,7 @@ class Q8326(BaseDevice):
         - 66 (0100 0010): Syntax Error. Command not recognized.
         - 67 (0100 0011): Syntax Error + Data. Error occurred, buffer not empty.
         """
+        status = "O.K."
         
         cmd_name = self.CMD_DIKT.get(cmd, "cmd is not in self.CMD_DIKT")
 
@@ -225,6 +226,7 @@ class Q8326(BaseDevice):
 
         t0 = None
         results = []
+
         for i in range(n_measurements):
             data = self.read(silent=True, device_read_time=True)
             if t0 is None:
@@ -234,9 +236,15 @@ class Q8326(BaseDevice):
                 print(f"wlm_monitor measurement No.{i}: "
                       f"{data['wavelength']*1E9:.4f} nm, {data['time_s']-t0:.2f} s ")
             results.append(data)
-            time.sleep(sleep)
+
+            if i < n_measurements -1: 
+                time.sleep(sleep)
  
+        if not results:
+            return pd.DataFrame()
+        
         df = pd.DataFrame(results)
+        
         if not df.empty:
             #t0 = df['time_s'].min()
             df['time_s'] = df['time_s'] - t0
