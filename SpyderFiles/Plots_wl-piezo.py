@@ -18,6 +18,17 @@ import pandas as pd
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
+import os
+
+import sys
+from pathlib import Path
+current_file = Path(__file__).resolve()
+project_root = current_file.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from utils.terminal_styler import TerminalColours
+style = TerminalColours()
 
 
 BASE_PATH = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud Manz/DATA/")
@@ -287,12 +298,15 @@ def plot_piezo_comparison(
     out_path = plots_dir / "piezo_comparison_all.png"
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close()
-    print(f"Plot gespeichert: {out_path}")
+    print(f"{style.GREEN}Plot gespeichert: {out_path}{style.RESET}")
 
 
 
 
 if __name__ == "__main__":
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print(f"\n {style.MAGENTA}====== Plots_wl-piezo.py ======={style.RESET}")
+
     plot_piezo_comparison(
         wl_unit="nm",       # "nm" oder "pm"
         sort_by_time=True,

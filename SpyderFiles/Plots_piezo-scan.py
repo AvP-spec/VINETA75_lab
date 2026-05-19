@@ -11,6 +11,7 @@ import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
+import os
 
 RELATIVE_BASE_PATH = Path(r"/home/erikh/Schreibtisch/Studium/Kurse 6/Bachelor-Arbeit/Data/")
 ABS_DIR_PATH = Path.home() / RELATIVE_BASE_PATH
@@ -21,6 +22,16 @@ DATA_DIR = ABS_DIR_PATH / EXPERIMENT_DIR
  
 # Zeitzone, in der die Messung aufgezeichnet wurde
 LOCAL_TZ = ZoneInfo("Europe/Berlin")
+
+import sys
+from pathlib import Path
+current_file = Path(__file__).resolve()
+project_root = current_file.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from utils.terminal_styler import TerminalColours
+style = TerminalColours()
 
 
 # ----------------------
@@ -122,9 +133,11 @@ def main():
         except Exception as e:
             print(f"  FEHLER: {e}")
  
-    print(f"\nFertig. {len(csv_files)} Plot(s) erstellt.")
+    print(f"\n {style.GREEN}Fertig. {len(csv_files)} Plot(s) erstellt.{style.RESET}")
  
  
 if __name__ == "__main__":
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print(f"\n {style.MAGENTA}======= Plots_piezo-scan.py ======={style.RESET}")
     main()
 

@@ -21,6 +21,17 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from pathlib import Path
+import os
+
+import sys
+from pathlib import Path
+current_file = Path(__file__).resolve()
+project_root = current_file.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from utils.terminal_styler import TerminalColours
+style = TerminalColours()
 
 BASE_PATH = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud Manz/DATA/")
 EXPERIMENT_PATH = "2026-04-21_Andrei_LIF"
@@ -255,9 +266,12 @@ def plot_tuning_curve(
     out_path = plots_dir / "master_current_tuning_curve.png"
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close()
-    print(f"\nPlot gespeichert: {out_path}")
+    print(f"\n{style.GREEN}Plot gespeichert: {out_path}{style.RESET}")
 
 
 
 if __name__ == "__main__":
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print(f"\n {style.MAGENTA}====== Plots_wl-mc_wlstd-piezo.py ======={style.RESET}")
+
     plot_tuning_curve()

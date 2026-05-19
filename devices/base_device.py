@@ -4,6 +4,7 @@ import pyvisa
 import os
 import sys
 from pathlib import Path
+import json
 
 ##### import project related moduls ####
 current_file = Path(__file__).resolve()
@@ -12,41 +13,47 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from utils.terminal_styler import TerminalColours
+style = TerminalColours()
 
 class BaseDevice(TerminalColours):
-    DEVICE_DIKT = {
-        # GPIB: 
-        "USB0::0x03EB::0x2065::GPIB_06_4423030363035131A1C0::INSTR": "wavelength meter",    # hexadezimal
-        "USB0::1003::8293::GPIB_06_4423030363035131A1C0::0::INSTR": "wavelength meter",     # dezimal
-        # VID:PID fallback für Messgeräte ohne Seriennummer: 
-        "VID:PID = 0403:6001": "Pilot series", 
-        # Arduino per Seriennummer: 
-        "VID:PID:SER = 2341:0043:24238313635351910130": "Arduino-AvP",
-        "VID:PID:SER = 2341:0043:859373138373518122F1": "Arduino-Erik",
-    }
 
     CONNECTION_SETTINGS = {}
 
 
     def __init__(self):
         self.rm = None
+
+        config_path = Path(__file__).parent / "devices_config.json"
+        self.DEVICE_DIKT = self._load_device_config(config_path)
+
         try:
             self.rm = pyvisa.ResourceManager()
         except Exception:
-            print(self.RED)
-            print("BaseDevice init Error, pyvisa.ResourceManager() not created")
-            print("VISA not installed?")
-            print(self.RESET)
+            print(self.RED + "BaseDevice init Error, pyvisa.ResourceManager() not created" + "\n VISA not installed?" + self.RESET)
+
         self.hwid = None # HardWare IDentification  
         self.name = None
         self.port = None
      #   self.connection = None # the property for protection
         self.__inst = None
 
+    def _load_device_config(self, path): 
+        ''' Lädt die Hardware-IDs aus der JSON-Datei '''
+        try: 
+            with open(path, 'r') as f: 
+                config = json.load(f)
+                flat_dict = {}
+                for category in config.values():
+                    flat_dict.update(category)
+                return flat_dict
+        except Exception as e: 
+            print(f"{self.RED}Error loading config file {path}: {e}{self.RESET}")
+            return {}
+
     @property
     def connection(self):
         if self.__inst is None:
-            print("\n BaseDevice.connection")
+            print(f"\n [{self.name}]BaseDevice.connection")
             print(f"{self.RED}Device is not connected{self.RESET}")
             # raise ConnectionError(f"{self.RED}Device is not connected{self.RESET}")
         return self.__inst
@@ -268,7 +275,7 @@ class BaseDevice(TerminalColours):
 
 if __name__ == "__main__":
     os.system('cls' if os.name == 'nt' else 'clear')
-    print("======== base_device.py modul =========")      
+    print(f"{style.MAGENTA}======== base_device.py modul ========={style.RESET}")      
     dvc = BaseDevice()
     # for el in dvc.get_COM_connections():
     #     print(el)
@@ -277,7 +284,7 @@ if __name__ == "__main__":
     #     print(el)
 
     dvc.print_connections()
-    dvc.print_coulors()
+    # dvc.print_coulors()
 
     # resources = dvc.rm.list_resources()
     # print(resources)

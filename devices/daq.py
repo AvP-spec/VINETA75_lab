@@ -115,6 +115,13 @@ class DAQ(BaseDevice):
                     silent: bool = True,
                     device_read_time: bool = False,
                     ) -> dict:
+        if self.connection is None and self._task is None: 
+            return {
+                "voltageV_":    np.nan,
+                "std_V":        np.nan,
+                "n_samples":    0,
+                "channel":      channel,
+            }
         """
         Read n_samples from one channel and return mean and std.
         Averaging reduces noise from the analog signal.

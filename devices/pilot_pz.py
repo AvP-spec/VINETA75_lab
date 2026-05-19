@@ -548,6 +548,8 @@ class PilotPC4000(PilotPZ):
 
 
 if __name__ == "__main__":
+    print("======= pilot_pz.py modul ==========")
+    
     os.system('cls' if os.name == 'nt' else 'clear')
     master_diode = PilotPZ500()
     master_diode.connect(silent=True)

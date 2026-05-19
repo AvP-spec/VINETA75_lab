@@ -224,10 +224,11 @@ class FunctionGenerator(BaseDevice):
 
 
     def disconnect(self):
-        try:
-            self.output_off()
+        try: 
+            if self.connection is not None: 
+                self.output_off()
         except Exception as e:
-            print(f"[{self.name}] output_off at disconnect failed: {e}")
+            pass # print(f"[{self.name}] output_off at disconnect failed: {e}")
         return BaseDevice.disconnect(self)
 
 
