@@ -66,7 +66,7 @@ def make_data_file_name(
     
     """
     Generates a full path for a data file with a timestamp.
-    Format: data_dir / hh-mm-ss_ms_base_name.extension
+    Format: data_dir / hh-mm-ss_base_name.extension
     """
     data_dir = Path(data_dir)
     now = datetime.now()
@@ -127,31 +127,27 @@ def save_dataframe(
 
 def select_file(default_dir=ABS_DIR_PATH, filter="All Files (*)"):
     app = QApplication.instance() or QApplication(sys.argv)
-    # app = QApplication(sys.argv)
     file_path, _ = QFileDialog.getOpenFileName(
-        parent=None, # do not connect the new window to pevious App
-        caption='file_utils: Select file', # window title
-        directory=str(default_dir),
-        filter=filter
+        parent      = None,                             # do not connect the new window to pevious App
+        caption     = 'file_utils: Select file',        # window title
+        directory   = str(default_dir),
+        filter      = filter
     )
-
-    app.quit()
-
-    return file_path
+    app.processEvents()  
+    return file_path if file_path else None
 
 
 def select_folder(default_dir=ABS_DIR_PATH):
     app = QApplication.instance() or QApplication(sys.argv)
-    # app = QtWidgets.QApplication(sys.argv)
     folder_path = QFileDialog.getExistingDirectory(
-        parent=None,
-        caption='file_utils: Select folder',
-        directory=str(default_dir),
+        parent      = None,
+        caption     = 'file_utils: Select folder',
+        directory   = str(default_dir),
         #options=QFileDialog.Option.ShowDirsOnly  # Shows only folders
     )
-    app.quit()
+    app.processEvents()
 
-    return folder_path
+    return folder_path if folder_path else None
 
 
 def read_file_header(filepath):
@@ -264,7 +260,7 @@ if __name__ == "__main__":
 
         return success
 
-  #  test_save_dataframe()
+    test_save_dataframe()
 
 
     file_path = select_file()

@@ -552,16 +552,47 @@ if __name__ == "__main__":
     
     os.system('cls' if os.name == 'nt' else 'clear')
     master_diode = PilotPZ500()
-    master_diode.connect(silent=True)
+    master_diode.connect(silent=False)
     amplifier_diode = PilotPC4000()
-    amplifier_diode.connect()
+    # amplifier_diode.connect(silent=False)
+    
+    master_diode.print_connections()
     
     master_diode.read_limits()
-    amplifier_diode.read_limits()
-    master_diode.set_defoults()
-    amplifier_diode.set_defoults()
-    print(master_diode.read_laser())
-    print(amplifier_diode.read_laser())
+    # amplifier_diode.read_limits()
+    # master_diode.set_defoults()
+    # amplifier_diode.set_defoults()
+    # print(master_diode.read_laser())
+    # print(amplifier_diode.read_laser())
+
+
+    def test_laser_status(laser: object = master_diode):
+        try:
+            laser.set_defoults()
+            laser.switch_on()
+            time.sleep(5)
+
+            print("\n--- Laser Status bei Default-Strom (51.5 mA) ---")
+            print("Compliance:   ", laser.read_value(":Laser:COMpliance?"))
+            print("System Status:", laser.read_value(":SYSTem:STATus?"))
+            print("Laser Voltage:", laser.read_value(":Laser:VOLTage?"))
+            print("Laser Current:", laser.read_value(":Laser:CURRent?"))
+            print("Set Current:  ", laser.read_value(":Laser:CURRent:Set?"))
+
+            print("\n--- Laser Status bei erhöhtem Strom (200 mA) ---")
+            laser.set_current(0.200, "A")
+            time.sleep(2)
+            print("Compliance:   ", laser.read_value(":Laser:COMpliance?"))
+            print("System Status:", laser.read_value(":SYSTem:STATus?"))
+            print("Laser Voltage:", laser.read_value(":Laser:VOLTage?"))
+            print("Laser Current:", laser.read_value(":Laser:CURRent?"))
+            print("Set Current:  ", laser.read_value(":Laser:CURRent:Set?"))
+
+        finally:
+            laser.set_defoults()
+            laser.switch_off()
+
+    # test_laser_status()
 
 
     # print(master_diode.laser_monitor_df(n_measurements=5))

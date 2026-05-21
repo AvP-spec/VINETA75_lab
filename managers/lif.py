@@ -7,8 +7,6 @@ from pathlib import Path
 import os
 import sys
 
-import argparse
-
 data_path = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud Manz/DATA/lif_py_test")
 
 ##### import project related moduls ####
@@ -198,6 +196,24 @@ class LIFManager(TerminalColours):
                 results.update(data)
 
         return results
+    
+    def get_device_state_meta(self) -> dict:
+        '''Returns current device settings as metadata dict for file_utils.'''
+        meta = {}
+        try:
+            meta['master_set_current_A']    = float(self.master_diode.read_setcurrent())
+            meta['master_set_temperature_C']= float(self.master_diode.read_settemperature())
+            meta['master_piezo_V']          = float(self.master_diode.read_piezo())
+            meta['master_laser_mode']       = self.master_diode.read_mode()
+            meta['master_laser_status']     = self.master_diode.read_status()
+            meta['amplif_set_current_A']    = float(self.amplifier_diode.read_setcurrent())
+            meta['amplif_set_temperature_C']= float(self.amplifier_diode.read_settemperature())
+            meta['amplif_laser_mode']       = self.amplifier_diode.read_mode()
+            meta['amplif_laser_status']     = self.amplifier_diode.read_status()
+            meta['wlm_average']             = self.wlm.average
+        except Exception as e:
+            meta['device_state_error'] = str(e)
+        return meta
 
 
 
@@ -1559,9 +1575,6 @@ if __name__ == "__main__":
     # print(f"{current_file=}")
     # print(f"{project_root=}")
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--set-current", type=float, help="Set Master Diode current in mA")
-    args = parser.parse_args()
 
     laser_warmup_s = 20     # Wartezeit nach laser_on() in Sekunden zum Temperieren
 
@@ -1571,10 +1584,6 @@ if __name__ == "__main__":
     readout = r_man.read_state()
     for key, value in readout.items(): 
         print(f"  {key}: {value}")
-
-    if args.set_current is not None: 
-        r_man.master_diode.set_current(args.set_current, "mA")
-        print(f"{style.BLUE}Master Diode current set to {args.set_current} mA{style.RESET}")
 
 
     def test_label_keys():
@@ -1797,6 +1806,8 @@ if __name__ == "__main__":
         finally: 
             r_man.laser_off()
 
+    # TEST_MASTER_DIODE_CURRENT()
+
     # r_man.master_diode.scan_laser_parameters(silent=False)
 
 
@@ -1804,4 +1815,7 @@ if __name__ == "__main__":
     # print(master_readout)
     # r_man.laser_on(silent=True)
     # r_man.laser_off(silent=True)
+
+    
+
     r_man.disconnect_all()
