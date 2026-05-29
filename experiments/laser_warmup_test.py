@@ -25,6 +25,7 @@ if str(project_root) not in sys.path:
 
 from managers.lif import LIFManager
 import utils.file_utils as fu
+import utils.lif_plots as lp
 from utils.terminal_styler import TerminalColours
 
 tc = TerminalColours()
@@ -42,14 +43,14 @@ FILE_BASE_NAME = "laser_warmup"              # Dateiname-Basis
 COMMENT = "measuring laser warmup"
 
 N_MEASUREMENTS   = 50
-SLEEP            = 2.0
+SLEEP            = 1.0
 
 # ----------------------------------------------------------------
 # Pfade vorbereiten
 # ----------------------------------------------------------------
 data_dir = fu.make_data_dir(
     base_path = BASE_PATH,
-    base_name = "laser_warmup",         # manuelle Eingabe
+    base_name = "LIF/laser_warmup",         # manuelle Eingabe
 )
 file_path_csv  = fu.make_data_file_name(
     data_dir  = data_dir,
@@ -58,7 +59,7 @@ file_path_csv  = fu.make_data_file_name(
 )
 plots_dir = fu.make_data_dir(
     base_path = BASE_PATH, 
-    base_name = "laser_warmup/plots",   # manuelle Eingabe
+    base_name = "LIF/laser_warmup",   # manuelle Eingabe
 )
 file_path_plot = fu.make_data_file_name(
     data_dir  = plots_dir,
@@ -75,21 +76,20 @@ print(f"Plot: {file_path_plot.name}\n")
 # ----------------------------------------------------------------
 r_man = LIFManager()
 df = None
+scan_start_time = datetime.now()
+meta = {
+    "operator":         getpass.getuser(),
+    "script":           Path(__file__).name, 
+    "scan_start_time":  str(scan_start_time), 
+    "comment":          COMMENT, 
+    "n_measurements":   N_MEASUREMENTS, 
+    "sleep":            SLEEP,
+}
 
 try: 
     r_man.laser_on()
     # no laser warmup time!
-
-    # Metadaten zusammenstellen
-    scan_start_time = datetime.now()
-    meta = {
-        "operator":         getpass.getuser(),
-        "script":           Path(__file__).name, 
-        "scan_start_time":  str(scan_start_time), 
-        "comment":          COMMENT, 
-        "n_measurements":   N_MEASUREMENTS, 
-        "sleep":            SLEEP,
-    }
+    
     meta.update(r_man.get_device_state_meta())
 
     df = r_man.measure_laser_warmup(
@@ -103,10 +103,16 @@ finally:
     r_man.laser_off()
     r_man.disconnect_all()
 
+
 # ----------------------------------------------------------------
 # Speichern
 # ----------------------------------------------------------------
 if df is not None and not df.empty:
+
+    # Plot erstellen
+    lp.plot_warmup(df, save_path=str(file_path_plot))
+
+    # DataFrame speichern
     fu.save_dataframe(
         df        = df,
         file_path = file_path_csv,
@@ -117,3 +123,4 @@ if df is not None and not df.empty:
     )
 else:
     print("WARNUNG: Kein DataFrame zum Speichern – Messung leer oder abgebrochen")
+

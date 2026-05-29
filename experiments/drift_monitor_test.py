@@ -26,6 +26,7 @@ if str(project_root) not in sys.path:
 
 from managers.lif import LIFManager
 import utils.file_utils as fu
+import utils.lif_plots as lp
 from utils.terminal_styler import TerminalColours
 
 tc = TerminalColours()
@@ -39,14 +40,14 @@ print(f"{tc.BLUE}============= laser_warmup_test.py ============={tc.RESET}\n \n
 # ----------------------------------------------------------------
 BASE_PATH    = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud Manz/DATA/")
 
-FILE_BASE_NAME = "drift_667nm"              # Dateiname-Basis
-COMMENT = "Drift-Monitor bei 667.91 nm, 30 min, avg ON"
+FILE_BASE_NAME = "drift_668nm"              # Dateiname-Basis
+COMMENT = "Drift-Monitor bei 668.62 nm, 3 min, avg ON"
 
-LASER_WARMUP_S   = 20       # Wartezeit nach laser_on()
-TARGET_WL_M      = 667.91e-9
-TOLERANCE_PM     = 1.0
-DRIFT_DURATION_S = 1800     # 30 Minuten
-DRIFT_INTERVAL_S = 5        # alle 5 Sekunden
+LASER_WARMUP_S   = 10       # Wartezeit nach laser_on() in sek
+TARGET_WL_M      = 668.62e-9
+TOLERANCE_PM     = 2.0
+DRIFT_DURATION_S = 180     # Dauer einstellen
+DRIFT_INTERVAL_S = 2.2        # alle x Sekunden
 
 # ----------------------------------------------------------------
 # Pfade vorbereiten
@@ -60,8 +61,12 @@ file_path_csv  = fu.make_data_file_name(
     base_name = FILE_BASE_NAME,
     extension = "csv",
 )
+plots_dir = fu.make_data_dir(
+    base_path = BASE_PATH, 
+    base_name = "LIF/drift_monitor",   # manuelle Eingabe
+)
 file_path_plot = fu.make_data_file_name(
-    data_dir  = data_dir,
+    data_dir  = plots_dir,
     base_name = FILE_BASE_NAME,
     extension = "png",
 )
@@ -123,6 +128,9 @@ finally:
 # Speichern
 # ----------------------------------------------------------------
 if df is not None and not df.empty:
+
+    lp.plot_drift_monitor(df, save_path=str(file_path_plot))
+
     fu.save_dataframe(
         df        = df,
         file_path = file_path_csv,

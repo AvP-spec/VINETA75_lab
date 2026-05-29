@@ -25,7 +25,7 @@ from utils.terminal_styler import TerminalColours
 
 style = TerminalColours()
 
-
+import utils.lif_plots as lp
 
 class LIFManager(TerminalColours):
 
@@ -147,38 +147,42 @@ class LIFManager(TerminalColours):
         task_results = [None]*5
 
         # data = {}  
-        def worker(index, label, method, kwargs):
+        def worker(index, label, device, method_name, kwargs):
+            # PRÜFUNG: Nur ausführen, wenn das Gerät verbunden ist!
+            if device is None or getattr(device, 'connection', None) is None:
+                # Still beenden, wenn keine Verbindung existiert
+                return 
+
             try:
+                # Die Methode dynamisch vom Objekt aufrufen
+                method = getattr(device, method_name)
                 readout = method(**kwargs)
                 task_results[index] = self._label_keys(readout, label)
-                # data.update(labeled)
-            except AttributeError: 
-                # Gerät nicht verbunden --> still übersprungen
+            except AttributeError:
                 pass
             except Exception as e:
                 task_results[index] = {f"{label}_error": str(e)}
-                # data[f"{label}_error"] = str(e)
 
         tasks = [
-            (0, 'wlm', self.wlm.read, 
-             {'silent': silent, 'device_read_time': device_read_time}),
-
-            (1, 'master', self.master_diode.read_laser, 
-             {'device_read_time': device_read_time}),
-
-            (2, 'amplif', self.amplifier_diode.read_laser, 
-             {'device_read_time': device_read_time}),
-
-            (3, 'lia', self.lia.read_signal, 
-             {'silent': silent, 'device_read_time': device_read_time}),
-
-            (4, 'daq', self.daq.read_lif_signal, 
-             {'silent': silent, 'device_read_time': device_read_time}),
+            (0, 'wlm', self.wlm, 'read', 
+            {'silent': silent, 'device_read_time': device_read_time}),
+            
+            (1, 'master', self.master_diode, 'read_laser', 
+            {'device_read_time': device_read_time}),
+            
+            (2, 'amplif', self.amplifier_diode, 'read_laser', 
+            {'device_read_time': device_read_time}),
+            
+            (3, 'lia', self.lia, 'read_signal', 
+            {'silent': silent, 'device_read_time': device_read_time}),
+            
+            (4, 'daq', self.daq, 'read_lif_signal', 
+            {'silent': silent, 'device_read_time': device_read_time}),
         ]
 
         threads = []
-        for index, label, method, kwargs in tasks:
-            t = threading.Thread(target=worker, args=(index, label, method, kwargs))
+        for index, label, device, method_name, kwargs in tasks:
+            t = threading.Thread(target=worker, args=(index, label, device, method_name, kwargs))
             threads.append(t)
 
         ### start thresds
@@ -275,7 +279,7 @@ class LIFManager(TerminalColours):
             self.master_diode.set_piezo(value=v, unit="V", silent=True)
             states = [self.read_state(silent=silent) for _ in range(n_wlm)]
 
-            wls = [s['wlm_wavelength'] for s in states]
+            wls = [s.get('wlm_wavelength', np.nan) for s in states]
             wl_mean = sum(wls) / n_wlm
             wl_std = float(np.std(wls)) if n_wlm > 2 else 0.0
             wl_err = (max(wls) - min(wls)) / 2
@@ -314,7 +318,7 @@ class LIFManager(TerminalColours):
         print(df.to_string())
 
         if plot: 
-            self._plot_scan_piezo(df, save_path=save_path)
+            lp.plot_scan_piezo(df, save_path=save_path)
         
         return df
     
@@ -466,7 +470,7 @@ class LIFManager(TerminalColours):
             print(f"  {self.GREEN}Done. {len(df)} measurements over {df.index[-1]:.1f} s{self.RESET}")
 
         if plot:
-            self._plot_settling(all_results, scenarios, save_path=save_path)
+            lp.plot_settling(df, scenarios=scenarios, save_path=save_path)
 
         return all_results
     
@@ -505,8 +509,10 @@ class LIFManager(TerminalColours):
         df = pd.DataFrame(record).set_index('time_s')
         print(f"  {self.GREEN}Done. {len(df)} measurements over {df.index[-1]:.1f} s{self.RESET}")
 
-        if plot:
-            self._plot_warmup(df, save_path=save_path)
+        # if plot:
+        #     lp.plot_warmup(df, save_path=save_path)
+        
+        return df
     
     def _plot_warmup(self, df: pd.DataFrame, save_path: str = None):
         '''Plot laser warmup: current drift and temperature drift over time.'''
@@ -672,7 +678,7 @@ class LIFManager(TerminalColours):
 
         current_limits = self.master_diode.current['limits']
         i_min = current_limits['min']
-        i_max = current_limits['max']
+        i_max = 0.73 # current_limits['max']
 
         print(f"\n{self.CYAN}set_wavelength(): "
             f"target = {target_nm:.4f} nm, "
@@ -698,7 +704,7 @@ class LIFManager(TerminalColours):
         tuning_rate_current = -2.2435e-9   # m/A – Vorzeichen: höherer Strom → kürzere λ?
                                     # ANPASSEN nach ersten Messungen!
 
-        i_current = 0.4671 # Zielstrom als Startwert // abs(float(self.master_diode.read_setcurrent()))
+        i_current = 0.05 # Zielstrom als Startwert // abs(float(self.master_diode.read_setcurrent()))
         self.master_diode.set_current(i_current, unit="A", silent=True)
         time.sleep(2.0)
 
@@ -862,8 +868,8 @@ class LIFManager(TerminalColours):
         print(f"{self.GREEN}Done. {len(df)} measurements over "
             f"{df.index[-1]:.1f} s{self.RESET}")
 
-        if plot:
-            self._plot_drift_monitor(df, save_path=save_path)
+        # if plot:
+        #     lp.plot_drift_monitor(df, save_path=save_path)
 
         return df
     
@@ -1184,7 +1190,7 @@ class LIFManager(TerminalColours):
         print(f"\n{self.GREEN}Test abgeschlossen.{self.RESET}")
 
         if plot:
-            self._plot_piezo_resolution(results, v_steps, save_path=save_path)
+            lp.plot_piezo_resolution(results, v_steps, save_path=save_path)
 
         return results
     
@@ -1446,7 +1452,7 @@ class LIFManager(TerminalColours):
             f"{len(df)} Messungen in {time.perf_counter()-t0:.1f} s{self.RESET}")
 
         if plot:
-            self._plot_tuning_rates(df, df_mean, save_path=save_path)
+            lp.plot_tuning_rates(df, df_mean, save_path=save_path)
 
         return df
 

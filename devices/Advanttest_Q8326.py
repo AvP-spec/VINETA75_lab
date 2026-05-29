@@ -254,6 +254,10 @@ class Q8326(BaseDevice):
 
 
     def disconnect(self):
+        if self.connection is None: 
+            print(f"[{self.name}] Keine aktive Verbindung, überspringe control_ren.")
+            return BaseDevice.disconnect(self)
+        
         try:
             self.connection.control_ren(6)
             ## dublicate of the command if code 6 is not correct 
@@ -261,6 +265,7 @@ class Q8326(BaseDevice):
         except pyvisa.errors.VisaIOError as e:
             print(f"[{self.name}] {self.YELLOW}Go To Local nicht unterstützt, "
                   f"übersprungen{self.RESET}")
+            return BaseDevice.disconnect(self)
         return BaseDevice.disconnect(self)
 
 if __name__ == "__main__":
