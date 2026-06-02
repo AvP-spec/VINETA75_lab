@@ -21,7 +21,7 @@ CSV_FILE_PATH = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud Manz/DATA/2026
 # Neuer Dateiname für den Plot: 
 # .stem holt "11-33-44_laser_characterization"
 # Dann hängen wir "_extraplot" an und fügen die Endung .png hinzu
-SAVE_PLOT_PATH = CSV_FILE_PATH.parent / f"{CSV_FILE_PATH.stem}_filtered-only-40-50-60-70.png"
+SAVE_PLOT_PATH = CSV_FILE_PATH.parent / f"{CSV_FILE_PATH.stem}_pres_piezo.png"
 
 # ----------------------------------------------------------------
 # JSON-Metadaten einlesen
@@ -71,7 +71,7 @@ except Exception as e:
 # Beispiel: Nur Daten plotten, bei denen die Wellenlänge nicht NaN ist
 # df = df.dropna(subset=['wl_mean_m']) 
 
-current_filter = [20.0, 25.0, 30.0, 35.0, 45.0, 55.0, 65.0]
+current_filter = [20.0, 25.0, 30.0, 35.0]
 df = df[~df['current_mA'].isin(current_filter)]
 
 print(f"Filterung abgeschlossen. Verbleibende Ströme: {df['current_mA'].unique()}")
@@ -81,7 +81,7 @@ print(f"Filterung abgeschlossen. Verbleibende Ströme: {df['current_mA'].unique(
 # 3. Plotten
 # ----------------------------------------------------------------
 # Jetzt einfach den DataFrame an deine bestehende Funktion übergeben
-lp.plot_characterization(
+lp.plot_characterization_for_pres(
     df=df, 
     CURRENT_STEP_MA=meta_data.get('current_step_ma', 5.0), 
     save_path=str(SAVE_PLOT_PATH), 

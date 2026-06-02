@@ -707,7 +707,239 @@ def plot_characterization(df: pd.DataFrame,
         fig.savefig(save_path, dpi=150, bbox_inches='tight')
         print(f"Plot gespeichert: {save_path}")
 
-    plt.show(block=True)
+    if show: 
+        plt.show(block=True)
     # plt.pause(0.5)
+    # plt.close(fig)
+    pass
+
+def plot_characterization_wl_c(df: pd.DataFrame,
+                           CURRENT_STEP_MA: float = 5.0,
+                           save_path: str = None,
+                           show: bool = True,
+                           ) -> plt.Figure:
+    '''
+    λ vs. Master-Strom [mA].
+    Farbe = Piezo-Spannung [V].
+    '''
+    piezo_values = sorted(df['master_piezo_off_set_V'].unique())
+    n            = len(piezo_values)
+
+    # Farbskala: gleichmäßig über volle Colormap
+    colors = cm.plasma(np.linspace(0, 1, n))
+
+    fig, ax = plt.subplots(figsize=(11, 7))
+
+    for col, v in zip(colors, piezo_values):
+        df_v = df[df['master_piezo_off_set_V'] == v].copy()
+        df_v = df_v.sort_values('current_mA')
+
+        wl_nm     = df_v['wl_mean_m'] * 1e9
+        wl_err_nm = df_v['wl_std_m']  * 1e9
+        current   = df_v['current_mA']
+
+        ax.errorbar(
+            current, wl_nm,
+            yerr       = wl_err_nm,
+            fmt        = 'o-',
+            color      = col,
+            markersize = 4,
+            linewidth  = 1.3,
+            capsize    = 2,
+            capthick   = 0.8,
+            elinewidth = 0.6,
+            label      = f"{v:.1f} V",
+            alpha      = 0.9,
+        )
+
+    # --- Lineare Fits pro Piezo-Spannung ---
+    fit_rates = []
+    for col, v in zip(colors, piezo_values):
+        df_v = df[df['master_piezo_off_set_V'] == v].sort_values('current_mA')
+        if len(df_v) < 2:
+            continue
+
+        x = df_v['current_mA'].values
+        y = df_v['wl_mean_m'].values * 1e9
+
+        coeffs = np.polyfit(x, y, 1)
+        x_fit  = np.linspace(x.min(), x.max(), 100)
+        y_fit  = np.polyval(coeffs, x_fit)
+
+        ax.plot(x_fit, y_fit,
+                color     = col,
+                linewidth = 0.8,
+                linestyle = '--',
+                alpha     = 0.6,
+                zorder    = 1)    # hinter den Datenpunkten
+
+        fit_rates.append({
+            'piezo_V':      v,
+            'rate_pm_per_mA': coeffs[0] * 1e3,   # nm/mA → pm/mA
+        })
+
+    # Abstimmraten aller Fits als Textbox
+    if fit_rates:
+        rate_mean = np.mean([r['rate_pm_per_mA'] for r in fit_rates])
+        rate_std  = np.std( [r['rate_pm_per_mA'] for r in fit_rates])
+        ax.text(
+            0.02, 0.97,
+            f"Strom-Abstimmrate (lin. Fit):\n"
+            f"  Mittel: {rate_mean:.3f} pm/mA\n"
+            f"  Std:    {rate_std:.3f} pm/mA",
+            transform = ax.transAxes,
+            fontsize  = 9,
+            va        = 'top',
+            bbox      = dict(boxstyle='round', facecolor='white', alpha=0.85)
+        )
+
+    # Colorbar
+    sm = plt.cm.ScalarMappable(
+        cmap = cm.plasma,
+        norm = plt.Normalize(vmin=piezo_values[0], vmax=piezo_values[-1])
+    )
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, pad=0.01)
+    cbar.set_label("Piezo-Spannung [V]", fontsize=11)
+    cbar.set_ticks(piezo_values[::2] if len(piezo_values) > 8
+                   else piezo_values)
+
+    ax.set_xlabel("Master-Strom [mA]", fontsize=12)
+    ax.set_ylabel("Wellenlänge [nm]",  fontsize=12)
+    ax.set_title(
+        f"Laser-Charakterisierung: λ vs. Master-Strom\n"
+        f"Piezo {piezo_values[0]:.1f}–{piezo_values[-1]:.1f} V, "
+        f"Strom-Schritt {CURRENT_STEP_MA:.0f} mA",
+        fontsize=12, fontweight='bold'
+    )
+    ax.grid(True, linestyle='--', alpha=0.4)
+
+    plt.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Plot gespeichert: {save_path}")
+
+    if show:
+        plt.show(block=True)
+    # plt.close(fig)
+    pass
+
+def plot_characterization_for_pres(df: pd.DataFrame,
+                           CURRENT_STEP_MA: float = 5.0,
+                           save_path: str = None,
+                           show: bool = True,
+                           ) -> plt.Figure:
+    '''
+    λ vs. Piezo-Spannung für alle Ströme.
+    Farbe = Master-Strom [mA].
+    '''
+    i_values = sorted(df['current_mA'].unique())
+    n        = len(i_values)
+
+    # Farbskala: gleichmäßig über volle Colormap
+    colors = cm.plasma(np.linspace(0, 1, n))
+
+    fig, ax = plt.subplots(figsize=(11, 7))
+
+    for col, i_mA in zip(colors, i_values):
+        df_i = df[df['current_mA'] == i_mA].copy()
+
+        # nach Piezo sortieren für saubere Linie
+        df_i = df_i.sort_values('master_piezo_off_set_V')
+
+        wl_nm     = df_i['wl_mean_m'] * 1e9
+        wl_err_nm = df_i['wl_std_m']  * 1e9
+        piezo     = df_i['master_piezo_off_set_V']
+
+        ax.errorbar(
+            piezo, wl_nm,
+            yerr      = wl_err_nm,
+            fmt       = 'o-',
+            color     = col,
+            markersize= 4,
+            linewidth = 1.3,
+            capsize   = 2,
+            capthick  = 0.8,
+            elinewidth= 0.6,
+            label     = f"{i_mA:.0f} mA",
+            alpha     = 0.9,
+        )
+
+    # Colorbar als zweite Legende
+    sm = plt.cm.ScalarMappable(
+        cmap  = cm.plasma,
+        norm  = plt.Normalize(vmin=i_values[0], vmax=i_values[-1])
+    )
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, pad=0.01)
+    cbar.set_label("Master-Strom [mA]", fontsize=11)
+    cbar.set_ticks(i_values)
+
+    ax.set_xlabel("Piezo-Spannung [V]", fontsize=12)
+    ax.set_ylabel("Wellenlänge [nm]",   fontsize=12)
+    ax.set_title(
+        f"Laser-Charakterisierung: λ vs. Piezo\n"
+        f"Master-Strom {i_values[0]:.0f}–{i_values[-1]:.0f} mA, "
+        f"Schritt {CURRENT_STEP_MA:.0f} mA",
+        fontsize=12, fontweight='bold'
+    )
+    ax.grid(True, linestyle='--', alpha=0.4)
+
+    # Abstimmrate als Textbox (aus erstem und letztem Scan)
+    df_mid = df[df['current_mA'] == i_values[len(i_values)//2]].sort_values(
+        'master_piezo_off_set_V')
+    if len(df_mid) >= 2:
+        dv   = df_mid['master_piezo_off_set_V'].iloc[-1] - \
+               df_mid['master_piezo_off_set_V'].iloc[0]
+        dwl  = (df_mid['wl_mean_m'].iloc[-1] - \
+                df_mid['wl_mean_m'].iloc[0]) * 1e12
+        rate = dwl / dv if dv != 0 else 0
+        ax.text(
+            0.02, 0.8,
+            f"Piezo-Rate ≈ {rate:.2f} pm/V\n"
+            f"(bei {i_values[len(i_values)//2]:.0f} mA)",
+            transform = ax.transAxes,
+            fontsize  = 9,
+            va        = 'top',
+            bbox      = dict(boxstyle='round', facecolor='white', alpha=0.85)
+        )
+
+    # --- Referenzlinien Argon ---
+    ax.axhline(667.91, color='black', linewidth=1.5,
+               linestyle='--', alpha=1.0,
+               label='Ar I  667.91 nm')
+    ax.axhline(668.40, color='black', linewidth=1.5,
+               linestyle='--', alpha=1.0,
+               label='Ar II 668.40 nm')
+
+    # Beschriftungen rechts an der Y-Achse
+    ax.text(
+        0.1, 667.91,
+        'Ar I\n667.91 nm',
+        transform     = ax.get_yaxis_transform(),
+        fontsize      = 12,
+        va            = 'center',
+        color         = 'black',
+        alpha         = 1.0,
+    )
+    ax.text(
+        0.1, 668.40,
+        'Ar II\n668.40 nm',
+        transform     = ax.get_yaxis_transform(),
+        fontsize      = 12,
+        va            = 'center',
+        color         = 'black',
+        alpha         = 1.0,
+    )
+
+    plt.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Plot gespeichert: {save_path}")
+
+    if show:
+        plt.show(block=True)
     # plt.close(fig)
     pass

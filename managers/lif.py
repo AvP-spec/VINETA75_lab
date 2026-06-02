@@ -583,7 +583,79 @@ class LIFManager(TerminalColours):
         # plt.pause(0.5)
         # plt.close(fig)
 
+    def measure_temperature_settling(self, 
+                               scenarios: list = None, 
+                               n_measurements: int = 50, 
+                               sleep: float = 1.0, 
+                               plot: bool = True, 
+                               save_path: str = None):
+        """
+        Misst das Settling-Verhalten des Lasers bei Temperaturänderungen.
+        """
+        # Standard-Szenarien für Temperatur (Start_Temp, Ziel_Temp, Label)
+        if scenarios is None:
+            scenarios = [
+                (25.0, 10.0, "Cooling: 25°C → 10°C"),
+                (10.0, 25.0, "Heating: 10°C → 25°C"),
+            ]
 
+        all_results = {}  # {label: DataFrame}
+
+        for t_start, t_end, label in scenarios:
+            print(f"\n{self.CYAN}=== Temperature Settling test: {label} ==={self.RESET}")
+
+            # 1. Setze Starttemperatur und warte auf thermisches Gleichgewicht
+            print(f"  Moving to start temperature {t_start} °C ...")
+            self.master_diode.set_temperature(value=t_start, unit="C", silent=True)
+            
+            # Temperatur braucht viel länger zum Settlen als ein Piezo!
+            # Hier könnte man optional eine Abfrage einbauen, ob die Ist-Temp erreicht ist.
+            print("  Waiting for thermal equilibrium (this may take a while)...")
+            time.sleep(30.0) 
+
+            # 2. Ausführen des Temperatursprungs
+            print(f"  Step to {t_end} °C – starting measurements ...")
+            t_step = time.perf_counter()
+            self.master_diode.set_temperature(value=t_end, unit="C", silent=True)
+
+            # 3. Settling messen
+            records = []
+            for i in range(n_measurements):
+                # Fortschrittsanzeige alle 5 Messungen, um das Terminal nicht zu fluten
+                if i % 5 == 0:
+                    print(f"  Measurement {i}/{n_measurements}...")
+                    
+                t = time.perf_counter() - t_step
+
+                master_data = self.master_diode.read_laser(device_read_time=False)
+                amplif_data = self.amplifier_diode.read_laser(device_read_time=False)
+
+                records.append({
+                    'time_s':                    t,
+                    'master_current_A':          master_data['current_A'],
+                    'master_set_current_A':      master_data['set_current_A'],
+                    'master_temperature_C':      master_data['temperature_C'],
+                    'master_set_temperature_C':  master_data['set_temperature_C'],
+                    'master_power':              master_data['power'],
+                    'amplif_current_A':          amplif_data['current_A'],
+                    'amplif_set_current_A':      amplif_data['set_current_A'],
+                    'amplif_temperature_C':      amplif_data['temperature_C'],
+                    'amplif_set_temperature_C':  amplif_data['set_temperature_C'],
+                    'amplif_power':              amplif_data['power'],
+                })
+                time.sleep(sleep)
+
+            df = pd.DataFrame(records).set_index('time_s')
+            all_results[label] = df
+            print(f"  {self.GREEN}Done. {len(df)} measurements over {df.index[-1]:.1f} s{self.RESET}")
+
+            if plot:
+                # Hinweis: lp.plot_settling muss eventuell anpassen, falls es 
+                # spezifisch auf Piezo-Daten (V) programmiert ist.
+                lp.plot_settling(df, scenarios=scenarios, save_path=save_path)
+
+        return all_results 
+    
     
     def _plot_settling(self, all_results: dict, scenarios: list, save_path: str = None): 
         import matplotlib.pyplot as plt
