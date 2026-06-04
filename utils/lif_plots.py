@@ -825,6 +825,113 @@ def plot_characterization_wl_c(df: pd.DataFrame,
     # plt.close(fig)
     pass
 
+def plot_characterization_wl_temp(df: pd.DataFrame, 
+                                 save_path: str = None, 
+                                 show: bool = True) -> plt.Figure:
+    '''
+    λ vs. Master-Temperatur [°C].
+    Farbe = Piezo-Spannung [V].
+    '''
+    fit_rates = []
+    
+    piezo_values = sorted(df['master_piezo_off_set_V'].unique())
+    n = len(piezo_values)
+    colors = cm.plasma(np.linspace(0, 1, n))
+    fig, ax = plt.subplots(figsize=(11, 7))
+    
+    for col, v in zip(colors, piezo_values):
+        # Daten für diese spezifische Piezo-Spannung filtern und nach Temperatur sortieren
+        df_v = df[df['master_piezo_off_set_V'] == v].copy()
+        df_v = df_v.sort_values('master_temperature_C')
+        
+        if df_v.empty:
+            continue
+            
+        wl_nm     = df_v['wl_mean_m'] * 1e9
+        wl_err_nm = df_v['wl_std_m']  * 1e9
+        temp      = df_v['master_temperature_C']
+        
+        ax.errorbar(
+            temp, wl_nm,
+            yerr       = wl_err_nm,
+            fmt        = 'o-',
+            color      = col,
+            markersize = 4,
+            linewidth  = 1.3,
+            capsize    = 2,
+            capthick   = 0.8,
+            elinewidth = 0.6,
+            label      = f"{v:.1f} V",
+            alpha      = 0.9,
+        )
+        
+        # --- Lineare Fits pro Piezo-Spannung (Temperaturkoeffizient) ---
+        if len(df_v) >= 2:
+            x = df_v['master_temperature_C'].values
+            y = df_v['wl_mean_m'].values * 1e9
+            
+            coeffs = np.polyfit(x, y, 1)
+            x_fit  = np.linspace(x.min(), x.max(), 100)
+            y_fit  = np.polyval(coeffs, x_fit)
+            
+            ax.plot(x_fit, y_fit,
+                    color     = col,
+                    linewidth = 0.8,
+                    linestyle = '--',
+                    alpha     = 0.6,
+                    zorder    = 1)
+            
+            # Wir speichern die Rate in pm/K (pm/°C)
+            fit_rates.append({
+                'piezo_V':      v,
+                'rate_pm_per_K': coeffs[0] * 1e3, # nm/K -> pm/K
+            })
+
+    if fit_rates:
+        rates = [r['rate_pm_per_K'] for r in fit_rates]
+        rate_mean = np.mean(rates)
+        rate_std  = np.std(rates)
+        ax.text(
+            0.02, 0.97,
+            f"Temp-Abstimmrate (lin. Fit):\n"
+            f"  Mittel: {rate_mean:.3f} pm/K\n"
+            f"  Std:    {rate_std:.3f} pm/K",
+            transform = ax.transAxes,
+            fontsize  = 9,
+            va        = 'top',
+            bbox      = dict(boxstyle='round', facecolor='white', alpha=0.85)
+        )
+
+    # Colorbar
+    sm = plt.cm.ScalarMappable(
+        cmap = cm.plasma,
+        norm = plt.Normalize(vmin=piezo_values[0], vmax=piezo_values[-1])
+    )
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, pad=0.01)
+    cbar.set_label("Piezo-Spannung [V]", fontsize=11)
+    cbar.set_ticks(piezo_values[::2] if len(piezo_values) > 8 else piezo_values)
+    
+    ax.set_xlabel("Master-Temperatur [°C]", fontsize=12)
+    ax.set_ylabel("Wellenlänge [nm]",  fontsize=12)
+    ax.set_title(
+        f"Laser-Charakterisierung: λ vs. Master-Temperatur\n"
+        f"Piezo {piezo_values[0]:.1f}–{piezo_values[-1]:.1f} V",
+        fontsize=12, fontweight='bold'
+    )
+    ax.grid(True, linestyle='--', alpha=0.4)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Plot gespeichert: {save_path}")
+        
+    if show:
+        plt.show(block=True)
+        
+    pass
+
 def plot_characterization_for_pres(df: pd.DataFrame,
                            CURRENT_STEP_MA: float = 5.0,
                            save_path: str = None,
@@ -943,3 +1050,69 @@ def plot_characterization_for_pres(df: pd.DataFrame,
         plt.show(block=True)
     # plt.close(fig)
     pass
+
+def plot_temperature_settling(all_results: dict,
+                             scenarios: list,
+                             save_path: str = None,
+                             show: bool = True,
+                             ) -> plt.Figure:
+    '''
+    Plotten des Settling-Verhaltens nach einem Temperatursprung.
+    Erwartet ein Dictionary all_results, in dem die Keys die Labels der Szenarien sind.
+    '''
+    n_scenarios = len(scenarios)
+    fig = plt.figure(figsize=(14, 4 * n_scenarios))
+    gs = GridSpec(n_scenarios, 3, figure=fig, hspace=0.5, wspace=0.35)
+    
+    col_titles = ['Current [A]', 'Temperature [°C]', 'Power']
+    
+    for row, (t_start, t_end, label) in enumerate(scenarios):
+        # Zugriff auf den DataFrame über das Label (verhindert den KeyError)
+        df = all_results[label]
+        
+        axes = [fig.add_subplot(gs[row, col]) for col in range(3)]
+        
+        # 1. Strom-Abweichung (Ist - Soll)
+        axes[0].plot(df.index, df['master_current_A'] - df['master_set_current_A'],
+                     color='steelblue', label='master')
+        axes[0].plot(df.index, df['amplif_current_A'] - df['amplif_set_current_A'],
+                     color='tomato', label='amplif', linestyle='--')
+        axes[0].axhline(0, color='black', linewidth=0.8, linestyle='-')
+        
+        # 2. Temperatur-Abweichung (Ist - Soll)
+        axes[1].plot(df.index, df['master_temperature_C'] - df['master_set_temperature_C'],
+                     color='steelblue', label='master')
+        axes[1].plot(df.index, df['amplif_temperature_C'] - df['amplif_set_temperature_C'],
+                     color='tomato', label='amplif', linestyle='--')
+        axes[1].axhline(0, color='black', linewidth=0.8, linestyle='-')
+        
+        # 3. Absolute Leistung
+        axes[2].plot(df.index, df['master_power'],
+                     color='steelblue', label='master')
+        axes[2].plot(df.index, df['amplif_power'],
+                     color='tomato', label='amplif', linestyle='--')
+        
+        for col, ax in enumerate(axes):
+            ax.set_xlabel('time [s]')
+            ax.legend(fontsize=8)
+            ax.grid(True, linestyle=':', alpha=0.6)
+            if col == 0:
+                ax.set_ylabel(f"{label}\n\n{col_titles[col]}", fontsize=9)
+            else:
+                ax.set_ylabel(col_titles[col], fontsize=9)
+            if row == 0:
+                ax.set_title(col_titles[col], fontsize=10)
+    
+    # Titel an Temperatur angepasst
+    fig.suptitle('Laser settling after temperature step', fontsize=13, y=1.01)
+    plt.tight_layout()
+    
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches='tight')
+        # Nutzt tc für Farben, falls TerminalColours global verfügbar ist
+        print(f"{tc.GREEN}Plot gespeichert: {save_path}{tc.RESET}")
+    
+    print(f"{tc.YELLOW2}-------- Close Figure to continue -------- {tc.RESET}")
+    plt.show(block=True)
+    
+    return fig

@@ -1,11 +1,14 @@
 """
-laser_temperature_characterization.py
+laser_characterization.py
 =========================
 Charakterisierung des Master-Lasers:
-Piezo-Scan für jeden Temperaturwert im angegebenen Bereich. 
+Piezo-Scan für jeden Stromwert im angegebenen Bereich. 
 
-Für jede Temperatur wird ein vollständiger Piezo-Scan durchgeführt.
-Ergebnis: Wellenlänge vs. Piezo-Spannung für alle Temperaturen, farbcodiert nach Temperatur.
+Für jeden Strom wird ein vollständiger Piezo-Scan durchgeführt.
+Ergebnis: Wellenlänge vs. Piezo-Spannung für alle Ströme, farbcodiert nach Strom.
+
+Ausführen:
+    python laser_characterization.py
 """
 
 # ----------------------------------------------------------------
@@ -34,38 +37,41 @@ from managers.lif import LIFManager
 import utils.file_utils as fu
 import utils.lif_plots as lp
 
+from lif_analysis.lif_plotter import plot_flex
+
 from utils.terminal_styler import TerminalColours
 
 tc = TerminalColours()
 
 subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
 
-print(f"\n{tc.BLUE}============ laser_temperature_characterization.py ============{tc.RESET}\n \n")
+print(f"\n{tc.BLUE}============ laser_characterization.py ============{tc.RESET}\n \n")
 
 # ----------------------------------------------------------------
 # Konfiguration – hier anpassen
 # ----------------------------------------------------------------
 BASE_PATH      = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud Manz/DATA/")
-FILE_BASE_NAME = "laser_temperature_characterization"
-COMMENT        = "Piezo-Scan für Temperaturen 10 - 20 °C in 5 °C Schritten"
+FILE_BASE_NAME = "laser_current_characterization"
+COMMENT        = "Piezo-Scan für Ströme 40-70 mA in 10 mA Schritten"
 
-LASER_WARMUP_S   = 20       # Wartezeit nach laser_on()
-TEMP_MIN_C       = 10.0     # °C
-CURRENT_MAX_MA   = 20.0     # °C
-TEMP_STEP_C      = 5.0      # °C
-TEMP_SETTLE_S    = 2.0      # Wartezeit nach Stromänderung          <-- muss noch angepasst werden
-N_WLM            = 2        # Wellenlängenmessungen pro Piezo-Punkt
-V_STEP           = 13.5     # Piezo-Schrittweite [V]
-ZIGZAG           = False
+LASER_WARMUP_S   = 5        # Wartezeit nach laser_on()
+CURRENT_MIN_MA   = 40.0     # mA
+CURRENT_MAX_MA   = 70.0     # mA
+CURRENT_STEP_MA  = 10.0      # mA
+CURRENT_SETTLE_S = 2.0      # Wartezeit nach Stromänderung
+N_WLM            = 5        # Wellenlängenmessungen pro Piezo-Punkt
+V_STEP           = 3.375      # Piezo-Schrittweite [V]
+ZIGZAG           = True
+HYSTERESIS       = True     # Hysteresis Messung
 
 # ----------------------------------------------------------------
 # Stromliste aufbauen
 # ----------------------------------------------------------------
-n_steps    = int(round((CURRENT_MAX_MA - TEMP_MIN_C) / TEMP_STEP_C)) + 1
-i_list_mA  = [round(TEMP_MIN_C + i * TEMP_STEP_C, 3)
+n_steps    = int(round((CURRENT_MAX_MA - CURRENT_MIN_MA) / CURRENT_STEP_MA)) + 1
+i_list_mA  = [round(CURRENT_MIN_MA + i * CURRENT_STEP_MA, 3)
                for i in range(n_steps)]
 
-print(f"Temperaturliste: {i_list_mA} mA")
+print(f"Stromliste: {i_list_mA} mA")
 print(f"Anzahl Scans: {len(i_list_mA)}\n")
 
 # ----------------------------------------------------------------
@@ -73,7 +79,7 @@ print(f"Anzahl Scans: {len(i_list_mA)}\n")
 # ----------------------------------------------------------------
 data_dir = fu.make_data_dir(
     base_path = BASE_PATH,
-    base_name = "LIF/laser_temperature_characterization",         # manuelle Eingabe
+    base_name = "LIF/laser_current_characterization",         # manuelle Eingabe
 )
 file_path_csv  = fu.make_data_file_name(
     data_dir  = data_dir,
@@ -82,7 +88,7 @@ file_path_csv  = fu.make_data_file_name(
 )
 plots_dir = fu.make_data_dir(
     base_path = BASE_PATH, 
-    base_name = "LIF/laser_temperature_characterization",   # manuelle Eingabe
+    base_name = "LIF/laser_current_characterization",   # manuelle Eingabe
 )
 file_path_plot = fu.make_data_file_name(
     data_dir  = data_dir,
@@ -113,11 +119,9 @@ try:
         print(f"  Scan {i_idx+1}/{len(i_list_mA)}: I = {i_mA:.1f} mA")
         print(f"{'─'*50}")
 
-        # Temperatur setzen und warten
-        r_man.master_diode.set_temperature(value=i_mA, unit="°C", silent=True)
-        
-    
-        time.sleep(TEMP_SETTLE_S)
+        # Strom setzen und warten
+        r_man.master_diode.set_current(i_mA * 1e-3, unit="A", silent=True)
+        time.sleep(CURRENT_SETTLE_S)
 
         # Piezo-Scan – kein Plot pro Scan, nur DataFrame
         df_scan = r_man.scan_piezo(
@@ -125,13 +129,14 @@ try:
             v_unit    = "[V]",
             n_wlm     = N_WLM,
             zigzag    = ZIGZAG,
+            hysteresis= HYSTERESIS,
             silent    = True,
             plot      = False,    # kein Einzel-Plot
             save_path = None,
         )
 
         # Strom als Spalte ergänzen
-        df_scan['current_mA'] = i_mA
+        # df_scan['current_mA'] = i_mA
         all_scans.append(df_scan)
 
     # alle Scans zusammenführen
@@ -162,7 +167,7 @@ try:
 
 finally:
     r_man.master_diode.set_current(
-        CURRENT_MIN_MA * 1e-3, unit="A", silent=True
+        70 * 1e-3, unit="A", silent=True
     )
     r_man.laser_off()
     r_man.disconnect_all()
@@ -175,7 +180,7 @@ finally:
 if df_all is not None and not df_all.empty:
 
     # Plot erstellen
-    lp.plot_characterization(df=df_all, CURRENT_STEP_MA=CURRENT_STEP_MA, save_path=str(file_path_plot))
+    # lp.plot_characterization(df=df_all, CURRENT_STEP_MA=CURRENT_STEP_MA, save_path=str(file_path_plot))
 
     # DataFrame speichern
     fu.save_dataframe(
@@ -189,3 +194,17 @@ if df_all is not None and not df_all.empty:
 
 else:
     print("WARNUNG: Kein DataFrame – Messung leer oder abgebrochen")
+
+plot_flex(
+    df              = df_all,
+    x_col           = 'master_piezo_off_set_V',
+    y_col           = 'wl_mean_m',
+    group_col       = 'master_current_mA',
+    y_err_col       = 'wl_std_m',
+    reference_lines = [
+        # {'value': 667.91e-9, 'label': 'Ar I  667.91 nm', 'ls': '--'},
+    ],
+    linear_fit      = True,
+    save_path       = str(file_path_plot),
+    show            = True,
+)

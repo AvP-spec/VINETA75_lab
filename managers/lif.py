@@ -228,9 +228,10 @@ class LIFManager(TerminalColours):
                    v_unit:str="[V]", # piezo voltage units 
                    n_wlm:int=5, # number of wavelength measurements
                    zigzag:bool=True,
+                   hysteresis: bool=False,
                    # device_read_time=False,
                    silent: bool = True, # only for wlm in current implementation
-                   plot: bool = True, 
+                   plot: bool = False, 
                    save_path: str = None, 
                     ):
     
@@ -261,15 +262,27 @@ class LIFManager(TerminalColours):
         v_step = v_step * piezo_unit_map[v_unit] 
         resolution = piezo_limits['resolution']
 
-        v_list = su.get_scan_list_stepped(
-                    min_val=v_min,
-                    max_val=v_max,
-                    step=v_step,
-                    resolution=resolution,
-                    margin_pct=0.5,
-                    reverse=False,
-                    zigzag=zigzag,
-                    )
+        if hysteresis: 
+            v_list_forward = su.get_scan_list_stepped( 
+                min_val=v_min, max_val=v_max, step=v_step, 
+                resolution=resolution, margin_pct=0.5, reverse=False, zigzag=False
+            )
+            v_list_backward = su.get_scan_list_stepped( 
+                min_val=v_min, max_val=v_max, step=v_step, 
+                resolution=resolution, margin_pct=0.5, reverse=True, zigzag=False
+            )
+            v_list = v_list_forward + v_list_backward
+            print(f"{self.GREEN}Hysteresis mode active: scanning forward and backward.{self.RESET}")
+        else: 
+            v_list = su.get_scan_list_stepped(
+                        min_val=v_min,
+                        max_val=v_max,
+                        step=v_step,
+                        resolution=resolution,
+                        margin_pct=0.5,
+                        reverse=False,
+                        zigzag=zigzag,
+                        )
 
         result = []
         t0 = time.perf_counter()
@@ -583,6 +596,58 @@ class LIFManager(TerminalColours):
         # plt.pause(0.5)
         # plt.close(fig)
 
+    def _wait_for_temperature(self, laser, target_temp: float, tolerance: float = 0.1, timeout: float = 500):
+        """
+        Wartet, bis die Temperatur innerhalb einer Toleranz des Zielwerts liegt.
+        timeout: maximale Wartezeit in Sekunden (Standard 5 Minuten)
+
+        Parameters:
+        laser        : Das Laser-Objekt (z.B. self.master_diode oder self.amplifier_diode)
+        target_temp  : Zieltemperatur in °C
+        tolerance    : Erlaubte Abweichung
+        timeout      : Maximale Wartezeit in Sekunden
+        """
+        start_time = time.perf_counter()
+        laser_name = "Master" if laser == self.master_diode else "Amplifier"
+        print(f"  Waiting for {laser_name} temperature to reach {target_temp}°C (±{tolerance}°C)...", end="")
+        
+        # Flag für den overshoot
+        has_overshoot = False
+        # prüfen, ob heizen oder kühlen
+        initial_data = laser.read_laser(device_read_time=False)
+        initial_temp = initial_data['temperature_C']
+        is_heating = target_temp > initial_temp
+
+        while True:
+            # Aktuellen Wert auslesen
+            current_data = laser.read_laser(device_read_time=False)
+            current_temp = current_data['temperature_C']
+
+            # 1. Überschwingen erkennen: 
+            if not has_overshoot: 
+                if is_heating and current_temp > target_temp: 
+                    time.sleep(2.0)
+                    has_overshoot = True
+                    print("\n  Overshoot detected, waiting for return to target...", end="")
+                elif not is_heating and current_temp < target_temp: 
+                    time.sleep(2.0)
+                    has_overshoot = True
+                    print("\n  Overshoot detected, waiting for return to target...", end="")
+            
+            # 2. Toleranzprüfung nur nach einmal überschwingen
+            if has_overshoot and abs(current_temp - target_temp) <= tolerance: 
+                print(f"\n {self.GREEN}Stabilized! Current Temp: {current_temp:.2f} °C{self.RESET}")
+                return True
+            
+            # Timeout-Prüfung
+            if (time.perf_counter() - start_time) > timeout:
+                print(f"\n  {self.RED}Timeout! Target not reached. Current Temp: {current_temp:.2f}°C{self.RESET}")
+                return False
+            
+            # Kleiner Punkt zur Visualisierung im Terminal
+            print(".", end="", flush=True)
+            time.sleep(2.0) # Nicht zu oft abfragen, um den Bus nicht zu belasten
+    
     def measure_temperature_settling(self, 
                                scenarios: list = None, 
                                n_measurements: int = 50, 
@@ -595,8 +660,8 @@ class LIFManager(TerminalColours):
         # Standard-Szenarien für Temperatur (Start_Temp, Ziel_Temp, Label)
         if scenarios is None:
             scenarios = [
-                (25.0, 10.0, "Cooling: 25°C → 10°C"),
-                (10.0, 25.0, "Heating: 10°C → 25°C"),
+                (20.0, 10.0, "Cooling: 20°C → 10°C"),
+                (10.0, 20.0, "Heating: 10°C → 20°C"),
             ]
 
         all_results = {}  # {label: DataFrame}
@@ -608,10 +673,11 @@ class LIFManager(TerminalColours):
             print(f"  Moving to start temperature {t_start} °C ...")
             self.master_diode.set_temperature(value=t_start, unit="C", silent=True)
             
-            # Temperatur braucht viel länger zum Settlen als ein Piezo!
-            # Hier könnte man optional eine Abfrage einbauen, ob die Ist-Temp erreicht ist.
-            print("  Waiting for thermal equilibrium (this may take a while)...")
-            time.sleep(30.0) 
+            success = self._wait_for_temperature(t_start, tolerance=0.1, timeout=600)
+            if not success: 
+                print("  Warning: Start temperature not fully stabilized. Proceeding anyway...")
+            print("    Waiting 45 more seconds for stabilization...")
+            time.sleep(45) 
 
             # 2. Ausführen des Temperatursprungs
             print(f"  Step to {t_end} °C – starting measurements ...")
@@ -649,11 +715,10 @@ class LIFManager(TerminalColours):
             all_results[label] = df
             print(f"  {self.GREEN}Done. {len(df)} measurements over {df.index[-1]:.1f} s{self.RESET}")
 
-            if plot:
-                # Hinweis: lp.plot_settling muss eventuell anpassen, falls es 
-                # spezifisch auf Piezo-Daten (V) programmiert ist.
-                lp.plot_settling(df, scenarios=scenarios, save_path=save_path)
+        if plot:
+            lp.plot_temperature_settling(all_results, scenarios=scenarios, save_path=save_path)
 
+        self.master_diode.set_temperature(value=16, unit="C", silent=True)
         return all_results 
     
     
@@ -718,43 +783,57 @@ class LIFManager(TerminalColours):
 
 
     def set_wavelength(self,
-                    target_wavelength_m: float = 667.91e-9,
+                    target_wavelength_m: float = 668.4e-9,
                     tolerance_pm: float = 1.0,
                     coarse_tolerance_pm: float = 100.0,
+                    use_current: bool = False,
+                    use_temperature: bool = True,
                     n_wlm: int = 5,
                     max_iterations: int = 50,
                     silent: bool = False,
                     ) -> bool:
         '''
         Sets laser to target wavelength in two steps:
-        1. Coarse tuning via master diode current
+        1. Coarse tuning via temperature and/or current
         2. Fine tuning via piezo
 
         Parameters
         ----------
         target_wavelength_m : target wavelength [m]
         tolerance_pm        : final tolerance for piezo fine tuning [pm]
-        coarse_tolerance_pm : tolerance for coarse current tuning [pm]
-                            must be within piezo range (~500 pm at 2.2 pm/V × 27V)
+        coarse_tolerance_pm : tolerance for coarse tuning [pm]
+        use_current         : enable current tuning in coarse step
+        use_temperature     : enable temperature tuning in coarse step
         n_wlm               : WLM measurements to average per step
         max_iterations      : max iterations per tuning stage
         '''
         target_nm = target_wavelength_m * 1e9
-        tol_m     = tolerance_pm * 1e-12
+        tol_m     = tolerance_pm    * 1e-12
         coarse_m  = coarse_tolerance_pm * 1e-12
 
         piezo_limits = self.master_diode.piezo['limits']
         v_min = piezo_limits['min']
         v_max = piezo_limits['max']
-        v_mid = (v_min + v_max) / 2   # Piezo-Mitte als Ausgangspunkt
+        v_mid = (v_min + v_max) / 2
 
         current_limits = self.master_diode.current['limits']
-        i_min = current_limits['min']
-        i_max = 0.73 # current_limits['max']
+        i_min  = current_limits['min']
+        i_max  = 0.073              # Secure-Setup-Limit
+
+        T_min  = -5.0               # °C
+        T_max  = 30.0               # °C
+
+        if not use_current and not use_temperature:
+            print(f"{self.RED}set_wavelength(): mindestens eine Grobabstimmung "
+                f"(Strom oder Temperatur) muss aktiviert sein.{self.RESET}")
+            return False
 
         print(f"\n{self.CYAN}set_wavelength(): "
             f"target = {target_nm:.4f} nm, "
-            f"tolerance = ±{tolerance_pm:.1f} pm{self.RESET}")
+            f"tolerance = ±{tolerance_pm:.1f} pm\n"
+            f"  Grobabstimmung: "
+            f"{'Strom ' if use_current else ''}"
+            f"{'Temperatur' if use_temperature else ''}{self.RESET}")
 
         def _measure_wl() -> float:
             wls = [self.wlm.read(silent=True)['wavelength']
@@ -762,79 +841,143 @@ class LIFManager(TerminalColours):
             return sum(wls) / n_wlm
 
         # ----------------------------------------------------------------
-        # Schritt 1: Grobabstimmung über Master-Strom
-        # Ziel: λ innerhalb ±coarse_tolerance_pm des Ziels
-        # Abstimmrate Strom: aus Scan-Daten bekannt (~X nm/A) → iterativ
+        # Schritt 1: Grobabstimmung
+        # Reihenfolge: erst Temperatur (langsam, großer Bereich),
+        #              dann Strom (schnell, kleiner Bereich)
         # ----------------------------------------------------------------
-        print(f"\n{self.MAGENTA}  Schritt 1: Grobabstimmung über Master-Strom ...{self.RESET}")
+        print(f"\n{self.MAGENTA}  Schritt 1: Grobabstimmung ...{self.RESET}")
 
-        # Piezo auf Mitte setzen für reproduzierbare Ausgangslage
         self.master_diode.set_piezo(value=v_mid, unit="V", silent=True)
 
-        # Abstimmrate Strom: Startwert aus bisherigen Messungen
-        # master_scan zeigte ~0.X nm über 0-600 mA → anpassen nach erstem Schritt
-        tuning_rate_current = -2.2435e-9   # m/A – Vorzeichen: höherer Strom → kürzere λ?
-                                    # ANPASSEN nach ersten Messungen!
+        tuning_rate_current = -2.2435e-9   # m/A
+        tuning_rate_temp    = -12e-12      # m/K  (-12 pm/K)
 
-        i_current = 0.05 # Zielstrom als Startwert // abs(float(self.master_diode.read_setcurrent()))
-        self.master_diode.set_current(i_current, unit="A", silent=True)
-        time.sleep(2.0)
+        i_current = 0.05
+        T_current = float(self.master_diode.read_settemperature())
 
-        for i in range(max_iterations):
-            wl = _measure_wl()
-            error_m  = target_wavelength_m - wl
-            error_pm = error_m * 1e12
+        if use_current:
+            self.master_diode.set_current(i_current, unit="A", silent=True)
+            time.sleep(2.0)
 
-            if not silent:
-                print(f"  [coarse] iter {i+1:2d}: "
-                    f"λ={wl*1e9:.6f} nm, "
-                    f"error={error_pm:+.1f} pm, "
-                    f"I={i_current*1e3:.2f} mA")
+        # --- Schritt 1a: Temperatur-Grobabstimmung ---
+        if use_temperature:
+            print(f"  {self.MAGENTA}Schritt 1a: Temperatur-Abstimmung ...{self.RESET}")
+            for i in range(max_iterations):
+                wl       = _measure_wl()
+                error_m  = target_wavelength_m - wl
+                error_pm = error_m * 1e12
 
-            if abs(error_m) <= coarse_m:
-                print(f"  {self.GREEN}Grobabstimmung erreicht: "
-                    f"error = {error_pm:+.1f} pm{self.RESET}")
-                break
+                if not silent:
+                    print(f"  [temp]   iter {i+1:2d}: "
+                        f"λ={wl*1e9:.6f} nm, "
+                        f"error={error_pm:+.1f} pm, "
+                        f"T={T_current:.3f} °C")
 
-            # Stromkorrektur
-            max_step_A = 0.050
-            i_correction = np.clip(error_m / tuning_rate_current, 
-                                   -max_step_A, max_step_A)
-            i_new = np.clip(i_current + i_correction, i_min, i_max)
+                if abs(error_m) <= coarse_m:
+                    print(f"  {self.GREEN}Temperatur-Abstimmung erreicht: "
+                        f"error = {error_pm:+.1f} pm{self.RESET}")
+                    break
 
-            if i_new <= 0:
-                print(f"  {self.RED}Strom-Untergrenze erreicht – "
-                    f"Zielwellenlänge nicht erreichbar{self.RESET}")
-                return False
-            if i_new >= i_max:
-                print(f"  {self.RED}Strom-Obergrenze erreicht – "
-                    f"Zielwellenlänge nicht erreichbar{self.RESET}")
-                return False
+                # Temperatur-Korrektur – maximal 2°C pro Schritt
+                max_step_K  = 2.0
+                T_correction = np.clip(error_m / tuning_rate_temp,
+                                    -max_step_K, max_step_K)
+                T_new = np.clip(T_current + T_correction, T_min, T_max)
 
-            # Abstimmrate adaptiv aktualisieren
-            if i > 0:
-                di  = i_new - i_current
-                if abs(di) > 1e-4:
-                    tuning_rate_current = (0.7 * tuning_rate_current
-                                        + 0.3 * (error_m / di))
+                if T_new <= T_min:
+                    print(f"  {self.YELLOW}Temperatur-Untergrenze erreicht "
+                        f"({T_min}°C){self.RESET}")
+                    break
+                if T_new >= T_max:
+                    print(f"  {self.YELLOW}Temperatur-Obergrenze erreicht "
+                        f"({T_max}°C){self.RESET}")
+                    break
 
-            self.master_diode.set_current(i_new, unit="A", silent=True)
-            i_current = i_new
+                # Abstimmrate adaptiv aktualisieren
+                if i > 0:
+                    dT = T_new - T_current
+                    if abs(dT) > 0.01:
+                        tuning_rate_temp = (0.7 * tuning_rate_temp
+                                        + 0.3 * (error_m / dT))
+                        tuning_rate_temp = np.clip(tuning_rate_temp,
+                                                -50e-12, -1e-12)
 
-        else:
-            print(f"  {self.RED}Grobabstimmung: max iterations erreicht{self.RESET}")
-            return False
+                self.master_diode.set_temperature(T_new, unit="C", silent=True)
+                T_current = T_new
+                success = self._wait_for_temperature(T_new, tolerance=tolerance_pm, timeout=600)
+                if not success: 
+                    print("  Warning: Start temperature not fully stabilized. Proceeding anyway...")
+                print("    Waiting 10 more seconds for stabilization...")
+                time.sleep(10)
+
+            else:
+                print(f"  {self.YELLOW}Temperatur-Abstimmung: "
+                    f"max iterations erreicht{self.RESET}")
+
+        # --- Schritt 1b: Strom-Grobabstimmung ---
+        if use_current:
+            print(f"  {self.MAGENTA}Schritt 1b: Strom-Abstimmung ...{self.RESET}")
+            for i in range(max_iterations):
+                wl       = _measure_wl()
+                error_m  = target_wavelength_m - wl
+                error_pm = error_m * 1e12
+
+                if not silent:
+                    print(f"  [coarse] iter {i+1:2d}: "
+                        f"λ={wl*1e9:.6f} nm, "
+                        f"error={error_pm:+.1f} pm, "
+                        f"I={i_current*1e3:.2f} mA")
+
+                if abs(error_m) <= coarse_m:
+                    print(f"  {self.GREEN}Strom-Abstimmung erreicht: "
+                        f"error = {error_pm:+.1f} pm{self.RESET}")
+                    break
+
+                max_step_A   = 0.050
+                i_correction = np.clip(error_m / tuning_rate_current,
+                                    -max_step_A, max_step_A)
+                i_new = np.clip(i_current + i_correction, i_min, i_max)
+
+                if i_new <= i_min:
+                    print(f"  {self.YELLOW}Strom-Untergrenze erreicht{self.RESET}")
+                    break
+                if i_new >= i_max:
+                    print(f"  {self.YELLOW}Strom-Obergrenze erreicht{self.RESET}")
+                    break
+
+                if i > 0:
+                    di = i_new - i_current
+                    if abs(di) > 1e-4:
+                        tuning_rate_current = (0.7 * tuning_rate_current
+                                            + 0.3 * (error_m / di))
+
+                self.master_diode.set_current(i_new, unit="A", silent=True)
+                i_current = i_new
+                time.sleep(0.5)
+
+            else:
+                print(f"  {self.YELLOW}Strom-Abstimmung: "
+                    f"max iterations erreicht{self.RESET}")
+
+        # Prüfe ob Grobabstimmung erfolgreich
+        wl       = _measure_wl()
+        error_m  = target_wavelength_m - wl
+        error_pm = error_m * 1e12
+        if abs(error_m) > coarse_m:
+            print(f"  {self.RED}Grobabstimmung nicht erfolgreich: "
+                f"error = {error_pm:+.1f} pm – Feinabstimmung wird trotzdem versucht"
+                f"{self.RESET}")
 
         # ----------------------------------------------------------------
         # Schritt 2: Feinabstimmung über Piezo
         # ----------------------------------------------------------------
         print(f"\n{self.MAGENTA}  Schritt 2: Feinabstimmung über Piezo ...{self.RESET}")
 
-        tuning_rate_piezo = 1.0564e-11   # m/V – Startwert
+        tuning_rate_piezo = 1.0564e-11   # m/V
         v_current = float(self.master_diode.read_piezo())
 
         for i in range(max_iterations):
-            wl = _measure_wl()
+            wl       = _measure_wl()
             error_m  = target_wavelength_m - wl
             error_pm = error_m * 1e12
 
@@ -850,18 +993,14 @@ class LIFManager(TerminalColours):
                     f"(error = {error_pm:+.3f} pm){self.RESET}")
                 return True
 
-            # Piezo-Korrektur
             v_correction = error_m / tuning_rate_piezo
             v_new = np.clip(v_current + v_correction, v_min, v_max)
 
-            # Prüfe ob Piezo an Grenze läuft
             if v_new in (v_min, v_max):
                 print(f"  {self.RED}Piezo-Grenze erreicht – "
-                    f"Feinabstimmung nicht möglich. "
-                    f"Grobabstimmung wiederholen.{self.RESET}")
+                    f"Feinabstimmung nicht möglich.{self.RESET}")
                 return False
 
-            # Abstimmrate adaptiv aktualisieren
             if i > 0:
                 dv = v_new - v_current
                 if abs(dv) > 0.001:
@@ -876,7 +1015,6 @@ class LIFManager(TerminalColours):
         print(f"{self.RED}set_wavelength(): Feinabstimmung: "
             f"max iterations erreicht{self.RESET}")
         return False
-
 
 
     def drift_monitor(self,
@@ -1887,6 +2025,25 @@ if __name__ == "__main__":
     # TEST_MASTER_DIODE_CURRENT()
 
     # r_man.master_diode.scan_laser_parameters(silent=False)
+    
+    
+    def TEST_LASER_TEMPERATURE_SETTLING():
+        try: 
+            r_man.laser_on()
+            r_man.master_diode.set_current(70.0, unit="mA", silent=True)
+            r_man.master_diode.set_temperature(value=20, unit="C", silent=True)
+            print(f"    Waiting 20 sec for laser warmup")
+            time.sleep(20)
+
+            r_man.measure_temperature_settling(
+                n_measurements  = 300,
+                plot            = True, 
+                save_path       = "/home/erikh/Schreibtisch/Studium/Nextcloud Manz/verschiedenes/temperature_settling/temperature_settling_2.png"
+            )
+        finally: 
+            r_man.laser_off()
+    
+    TEST_LASER_TEMPERATURE_SETTLING()
 
 
     # master_readout = r_man.master_diode.read_laser()
