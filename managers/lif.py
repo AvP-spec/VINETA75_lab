@@ -636,7 +636,11 @@ class LIFManager(TerminalColours):
             
             # 2. Toleranzprüfung nur nach einmal überschwingen
             if has_overshoot and abs(current_temp - target_temp) <= tolerance: 
+                duration = time.perf_counter() - start_time
+                minutes = int(duration // 60)
+                seconds = int(duration % 60)
                 print(f"\n {self.GREEN}Stabilized! Current Temp: {current_temp:.2f} °C{self.RESET}")
+                print(f"   Settling time: {minutes}m {seconds}s      ({duration:.1f} sec)\n")
                 return True
             
             # Timeout-Prüfung
