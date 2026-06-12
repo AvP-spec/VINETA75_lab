@@ -22,7 +22,9 @@ dependencies:
     - spyder-kernels
     - pyqt6 # added to this file at 2026_04_22, Andrei, 
     # pyqt will install version pyqt5 which can be depricated soon
-
+    - pip
+    - pip: 
+      - niscope
 #	  - pathlib  # core python packege 
     
     
