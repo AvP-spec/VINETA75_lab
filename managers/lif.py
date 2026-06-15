@@ -7,7 +7,7 @@ from pathlib import Path
 import os
 import sys
 
-data_path = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud Manz/DATA/lif_py_test")
+data_path = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud_Manz/DATA/lif_py_test")
 
 ##### import project related moduls ####
 current_file = Path(__file__).resolve()
@@ -17,9 +17,9 @@ if str(project_root) not in sys.path:
 
 from devices.Advanttest_Q8326 import Q8326
 from devices.pilot_pz import PilotPZ500, PilotPC4000
-from devices.function_generator import FunctionGenerator
-from devices.lock_in_amplifier import LockInAmplifier
-from devices.daq import DAQ
+# from devices.function_generator import FunctionGenerator
+# from devices.lock_in_amplifier import LockInAmplifier
+# from devices.daq import DAQ
 import utils.scan_utils as su
 from utils.terminal_styler import TerminalColours
 
@@ -34,16 +34,16 @@ class LIFManager(TerminalColours):
         self.amplifier_diode = PilotPC4000()
         self.wlm = Q8326()
         self.scope = None # not yet implemented
-        self.fg = FunctionGenerator()
-        self.lia = LockInAmplifier()
-        self.daq = DAQ()
+        # self.fg = FunctionGenerator()
+        # self.lia = LockInAmplifier()
+        # self.daq = DAQ()
 
         self._connect_device(self.master_diode, device_type="COM")
         self._connect_device(self.amplifier_diode)
         self._connect_device(self.wlm, device_type="GPIB")
-        self._connect_device(self.fg, device_type="COM")
-        self._connect_device(self.lia, device_type="COM")
-        self.daq.connect()
+        # self._connect_device(self.fg, device_type="COM")
+        # self._connect_device(self.lia, device_type="COM")
+        # self.daq.connect()
          
 
 
@@ -70,9 +70,9 @@ class LIFManager(TerminalColours):
         self.master_diode.disconnect()
         self.amplifier_diode.disconnect()
         self.wlm.disconnect()
-        self.fg.disconnect()
-        self.lia.disconnect()
-        self.daq.disconnect()
+        # self.fg.disconnect()
+        # self.lia.disconnect()
+        # self.daq.disconnect()
 
         return self
     
@@ -151,6 +151,7 @@ class LIFManager(TerminalColours):
             # PRÜFUNG: Nur ausführen, wenn das Gerät verbunden ist!
             if device is None or getattr(device, 'connection', None) is None:
                 # Still beenden, wenn keine Verbindung existiert
+                task_results[index] = {f"{label}_error": "Device not connected"}
                 return 
 
             try:
@@ -302,24 +303,32 @@ class LIFManager(TerminalColours):
             last = states[-1]
 
             record = {
-                'time_s':                   time.perf_counter() - t0,
-                'piezo_V':                  v,
-                'wl_mean_m':                wl_mean,
-                'wl_std_m':                 wl_std,
-                'wl_err_m':                 wl_err,
-                'master_current_A':         last['master_current_A'],
-                'master_temperature_C':     last['master_temperature_C'],
-                'master_power':             last['master_power'],
-                'master_piezo_off_set_V':   last['master_piezo_off_set_V'],
-                'amplif_current_A':         last['amplif_current_A'],
-                'amplif_temperature_C':     last['amplif_temperature_C'],
-                'amplif_power':             last['amplif_power'],
-                'daq_lif_signal_V':         last.get('daq_lif_signal_V'),
-                'daq_lif_std_V':            last.get('daq_lif_std_V'),
-                'lia_R':                    last.get('lia_R'),
-                'lia_X':                    last.get('lia_X'),
-                'lia_Y':                    last.get('lia_Y'),
-                'lia_theta_deg':            last.get('lia_theta_deg'),
+                'time_s':                       time.perf_counter() - t0,
+                'piezo_V':                      v,
+                'wl_mean_m':                    wl_mean,
+                'wl_std_m':                     wl_std,
+                'wl_err_m':                     wl_err,
+                'master_current_A':             last.get('master_current_A', np.nan),
+                'master_set_current_A':         last.get('master_set_current_A', np.nan),
+                'master_photo_diode_current_A':  last.get('master_photo_diode_current_A', np.nan),
+                'master_temperature_C':         last.get('master_temperature_C', np.nan),
+                'master_set_temperature_C':     last.get('master_set_temperature_C', np.nan),
+                'master_power':                 last.get('master_power', np.nan),
+                'master_laser_mode':            last.get('master_laser_mode', np.nan),
+                'master_piezo_off_set_V':       last.get('master_piezo_off_set_V', np.nan),
+                'amplif_current_A':             last.get('amplif_current_A', np.nan),
+                'amplif_set_current_A':         last.get('amplif_set_current_A', np.nan),
+                'amplif_photo_diode_current_A':  last.get('amplif_photo_diode_current_A', np.nan),
+                'amplif_temperature_C':         last.get('amplif_temperature_C', np.nan),
+                'amplif_set_temperature_C':     last.get('amplif_set_temperature_C', np.nan),
+                'amplif_power':                 last.get('amplif_power', np.nan),
+                'amplif_laser_mode':            last.get('amplif_laser_mode', np.nan),
+                # 'daq_lif_signal_V':             last.get('daq_lif_signal_V'),
+                # 'daq_lif_std_V':                last.get('daq_lif_std_V'),
+                # 'lia_R':                        last.get('lia_R'),
+                # 'lia_X':                        last.get('lia_X'),
+                # 'lia_Y':                        last.get('lia_Y'),
+                # 'lia_theta_deg':                last.get('lia_theta_deg'),
             }
 
             result.append(record)
@@ -2047,13 +2056,13 @@ if __name__ == "__main__":
         finally: 
             r_man.laser_off()
     
-    TEST_LASER_TEMPERATURE_SETTLING()
+    # TEST_LASER_TEMPERATURE_SETTLING()
 
 
     # master_readout = r_man.master_diode.read_laser()
     # print(master_readout)
     # r_man.laser_on(silent=True)
-    # r_man.laser_off(silent=True)
+    r_man.laser_off(silent=True)
 
     
 
