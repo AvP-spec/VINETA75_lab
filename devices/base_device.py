@@ -75,7 +75,7 @@ class BaseDevice(TerminalColours):
             if os.name != 'nt':  # nicht Windows
                 dev_path = Path(port.device)
                 for link in Path("/dev").iterdir():
-                    if link.name.startswith("ttyPilot"):
+                    if link.name.startswith("ttyPilot"):    # finds entries in /etc/udev/rules.d
                         try:
                             if link.resolve() == dev_path.resolve():
                                 symlink_name = link.name
@@ -265,9 +265,8 @@ class BaseDevice(TerminalColours):
             except Exception as e:
                 print(f_id)
                 print(f"[{self.RED}{self.name}] Error at closing:{self.RESET} {e}")
-
-            finally:
-                return self
+            
+            return self
 
 
             

@@ -22,6 +22,7 @@ from devices.pilot_pz import PilotPZ500, PilotPC4000
 # from devices.daq import DAQ
 import utils.scan_utils as su
 from utils.terminal_styler import TerminalColours
+from devices.Scope_NI5170R import ScopeNI5170R, ScopeJakobs
 
 style = TerminalColours()
 
@@ -30,20 +31,22 @@ import utils.lif_plots as lp
 class LIFManager(TerminalColours):
 
     def __init__(self):
-        self.master_diode = PilotPZ500()
-        self.amplifier_diode = PilotPC4000()
-        self.wlm = Q8326()
-        self.scope = None # not yet implemented
-        # self.fg = FunctionGenerator()
-        # self.lia = LockInAmplifier()
-        # self.daq = DAQ()
+        self.master_diode       = PilotPZ500()
+        self.amplifier_diode    = PilotPC4000()
+        self.wlm                = Q8326()
+        self.scope              = None # not yet implemented
+        # self.fg                 = FunctionGenerator()
+        # self.lia                = LockInAmplifier()
+        # self.daq                = DAQ()
+        self.scope              = ScopeJakobs() 
 
-        self._connect_device(self.master_diode, device_type="COM")
-        self._connect_device(self.amplifier_diode)
-        self._connect_device(self.wlm, device_type="GPIB")
+        self._connect_device(self.master_diode,     device_type="COM")
+        self._connect_device(self.amplifier_diode,  device_type="COM")
+        self._connect_device(self.wlm,              device_type="GPIB")
         # self._connect_device(self.fg, device_type="COM")
         # self._connect_device(self.lia, device_type="COM")
         # self.daq.connect()
+        self.scope.connect()
          
 
 
@@ -73,6 +76,7 @@ class LIFManager(TerminalColours):
         # self.fg.disconnect()
         # self.lia.disconnect()
         # self.daq.disconnect()
+        self.scope.disconnect()
 
         return self
     
@@ -211,13 +215,26 @@ class LIFManager(TerminalColours):
             meta['master_piezo_V']          = float(self.master_diode.read_piezo())
             meta['master_laser_mode']       = self.master_diode.read_mode()
             meta['master_laser_status']     = self.master_diode.read_status()
+        except Exception as e: 
+            meta['master_error'] = str(e)
+        try:
             meta['amplif_set_current_A']    = float(self.amplifier_diode.read_setcurrent())
             meta['amplif_set_temperature_C']= float(self.amplifier_diode.read_settemperature())
             meta['amplif_laser_mode']       = self.amplifier_diode.read_mode()
             meta['amplif_laser_status']     = self.amplifier_diode.read_status()
+        except Exception as e: 
+            meta['amplif_error'] = str(e)
+        try: 
             meta['wlm_average']             = self.wlm.average
+        except Exception as e: 
+            meta['wlm_error'] = str(e)
+        try: 
+            meta['scope_sample_rate']       = self.scope.settings['sample_rate']
+            meta['scope_record_length']     = self.scope.settings['record_length']
+            meta['scope_vertical_range']    = self.scope.settings['vertical_range']
+            meta['scope_trigger_level']     = self.scope.settings['trigger_level']
         except Exception as e:
-            meta['device_state_error'] = str(e)
+            meta['scope_error'] = str(e)
         return meta
 
 
@@ -310,7 +327,7 @@ class LIFManager(TerminalColours):
                 'wl_err_m':                     wl_err,
                 'master_current_A':             last.get('master_current_A', np.nan),
                 'master_set_current_A':         last.get('master_set_current_A', np.nan),
-                'master_photo_diode_current_A':  last.get('master_photo_diode_current_A', np.nan),
+                'master_photo_diode_current_A': last.get('master_photo_diode_current_A', np.nan),
                 'master_temperature_C':         last.get('master_temperature_C', np.nan),
                 'master_set_temperature_C':     last.get('master_set_temperature_C', np.nan),
                 'master_power':                 last.get('master_power', np.nan),
@@ -318,7 +335,7 @@ class LIFManager(TerminalColours):
                 'master_piezo_off_set_V':       last.get('master_piezo_off_set_V', np.nan),
                 'amplif_current_A':             last.get('amplif_current_A', np.nan),
                 'amplif_set_current_A':         last.get('amplif_set_current_A', np.nan),
-                'amplif_photo_diode_current_A':  last.get('amplif_photo_diode_current_A', np.nan),
+                'amplif_photo_diode_current_A': last.get('amplif_photo_diode_current_A', np.nan),
                 'amplif_temperature_C':         last.get('amplif_temperature_C', np.nan),
                 'amplif_set_temperature_C':     last.get('amplif_set_temperature_C', np.nan),
                 'amplif_power':                 last.get('amplif_power', np.nan),

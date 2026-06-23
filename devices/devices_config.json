@@ -6,7 +6,6 @@
     "USB": {
         "VID:PID = 0403:6001": "Pilot series",
         "VID:PID:SER = 2341:0043:24238313635351910130": "Arduino-AvP",
-        "VID:PID:SER = 2341:0043:859373138373518122F1": "Arduino-Erik", 
-        "VID:PID:SER = 067B:23A3:EIBBB11A920": "Oscilloscope"
+        "VID:PID:SER = 2341:0043:859373138373518122F1": "Arduino-Erik"
     }
 }
