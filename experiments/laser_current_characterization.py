@@ -1,5 +1,5 @@
 """
-laser_characterization.py
+laser_current_characterization.py
 =========================
 Charakterisierung des Master-Lasers:
 Piezo-Scan für jeden Stromwert im angegebenen Bereich. 
@@ -8,7 +8,7 @@ Für jeden Strom wird ein vollständiger Piezo-Scan durchgeführt.
 Ergebnis: Wellenlänge vs. Piezo-Spannung für alle Ströme, farbcodiert nach Strom.
 
 Ausführen:
-    python laser_characterization.py
+    python laser_current_characterization.py
 """
 
 # ----------------------------------------------------------------
@@ -77,19 +77,19 @@ col_current  = active_laser['col_current']
 col_piezo    = active_laser['col_piezo']
 safe_current = active_laser['safe_current']
 
-BASE_PATH      = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud Manz/DATA/")
+BASE_PATH      = Path(r"C:\Users\andrei_lab\Nextcloud\5360.AG_Manz\DATA")
 FILE_BASE_NAME = f"{LASER_TYPE}_current_characterization"
-COMMENT        = f"Piezo-Scan für {laser_name} Laser, Ströme 40-70 mA in 10 mA Schritten"
+COMMENT        = f"testing labor setup"
 
 LASER_WARMUP_S   = 5        # Wartezeit nach laser_on()
-CURRENT_MIN_MA   = 40.0     # mA
+CURRENT_MIN_MA   = 70.0     # mA
 CURRENT_MAX_MA   = 70.0     # mA
 CURRENT_STEP_MA  = 10.0      # mA
 CURRENT_SETTLE_S = 2.0      # Wartezeit nach Stromänderung
-N_WLM            = 5        # Wellenlängenmessungen pro Piezo-Punkt
-V_STEP           = 3.375      # Piezo-Schrittweite [V]
-ZIGZAG           = True
-HYSTERESIS       = True     # Hysteresis Messung
+N_WLM            = 3        # Wellenlängenmessungen pro Piezo-Punkt
+V_STEP           = 13.5      # Piezo-Schrittweite [V]
+ZIGZAG           = False
+HYSTERESIS       = False     # Hysteresis Messung
 
 # ----------------------------------------------------------------
 # Stromliste aufbauen

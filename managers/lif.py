@@ -1796,7 +1796,7 @@ if __name__ == "__main__":
     # print(f"{project_root=}")
 
 
-    laser_warmup_s = 20     # Wartezeit nach laser_on() in Sekunden zum Temperieren
+    laser_warmup_s = 3     # Wartezeit nach laser_on() in Sekunden zum Temperieren
 
     r_man = LIFManager()
 
@@ -1821,13 +1821,15 @@ if __name__ == "__main__":
 
 
     def test_laser():
-        r_man.laser_on()
-        time.sleep(laser_warmup_s)
-        print(f"    Waiting {laser_warmup_s} sec for laser warmup")
-        readout = r_man.read_state()
-        for key, value in readout.items(): 
-            print(f"  {key}: {value}")
-        r_man.laser_off()
+        try: 
+            r_man.laser_on()
+            time.sleep(laser_warmup_s)
+            print(f"    Waiting {laser_warmup_s} sec for laser warmup")
+            readout = r_man.read_state()
+            for key, value in readout.items(): 
+                print(f"  {key}: {value}")
+        finally: 
+            r_man.laser_off()
 
     # test_laser()
 
