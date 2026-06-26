@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 import json
+import subprocess
 
 ##### import project related moduls ####
 current_file = Path(__file__).resolve()
@@ -38,7 +39,7 @@ class BaseDevice(TerminalColours):
         self.__inst = None
 
     def _load_device_config(self, path): 
-        ''' Lädt die Hardware-IDs aus der JSON-Datei '''
+        ''' Loads the hardware IDs from the JSON file '''
         try: 
             with open(path, 'r') as f: 
                 config = json.load(f)
@@ -57,6 +58,20 @@ class BaseDevice(TerminalColours):
             print(f"{self.RED}Device is not connected{self.RESET}")
             # raise ConnectionError(f"{self.RED}Device is not connected{self.RESET}")
         return self.__inst
+    
+
+    def print_com_info(self):
+        ports = serial.tools.list_ports.comports()
+        print(" BaseDevice.print_com_info ".center(50, '-'))
+        print(f"{self.CYAN}{'-' * 50}{self.RESET}")
+        for port in ports:
+            print(f"=== Port: {port.device} ===")
+            # vars(port) returns a dict of all the object's internal variables
+            for key, value in vars(port).items():
+                print(f"  {key}: {value}")
+            print(f"{self.CYAN}{'-' * 50}{self.RESET}")
+        return self
+
 
     def _is_windows_serial_fake(self, port, silent=False):
         """
@@ -93,17 +108,17 @@ class BaseDevice(TerminalColours):
         
             
         return result
-    
+
         
     def _get_COM_connections(self):
         device_list = []
-        ports = serial.tools.list_ports.comports()
+        ports = serial.tools.list_ports.comports(include_links=True)
         for port in ports:
-            # ttyS Ports ohne VID/PID überspringen
+            # Linux: skip devices without VID/PID
             if port.vid is None and str(port.device).startswith('/dev/ttyS'):
                 continue
             vid = f"{port.vid:04X}" if port.vid is not None else "None"
-            pid = f"{port.pid:04X}" if port.pid is not None else "None"       
+            pid = f"{port.pid:04X}" if port.pid is not None else "None"   
             serial_no = f"{port.serial_number}" if port.serial_number is not None else "None"
             
             # Symlink nur unter Linux prüfen
@@ -133,12 +148,26 @@ class BaseDevice(TerminalColours):
             else:
                 hwid_ = hwid_full  # für "not in DEVICE_DIKT" Ausgabe
                 
+            # Windows generates a fake serial number for FTDI devices.
+            # check if the serial number is fake. 
+            if os.name == "nt":
+                fake = self._is_windows_serial_fake(port, silent=True)
+                if not fake:
+                    serial_no = f"{port.serial_number}"  # use the actual serial number
+                else:
+                    serial_no = "None"  # avoid Windows generated serial number
+                
+
+            # constract hardware identificator
+            hwid_ = f"VID:PID:SER = {vid}:{pid}:{serial_no}"
+
             if hwid_ in self.DEVICE_DIKT:
                 device_list.append([port.device, self.DEVICE_DIKT[hwid_], hwid_ ])
             else:  
                 device_list.append([port.device, "not in DEVICE_DIKT", hwid_])
         return device_list
         
+
     def _get_GPIB_connections(self):
         if self.rm is None:
             return[["None", "VISA Manager not initialized"]]
@@ -309,7 +338,7 @@ class BaseDevice(TerminalColours):
 
 
 if __name__ == "__main__":
-    os.system('cls' if os.name == 'nt' else 'clear')
+    subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
     print(f"{style.MAGENTA}======== base_device.py modul ========={style.RESET}")      
     dvc = BaseDevice()
     # for el in dvc.get_COM_connections():
@@ -318,6 +347,7 @@ if __name__ == "__main__":
     # for el in dvc.get_GPIB_connections():
     #     print(el)
 
+    dvc.print_com_info()
     dvc.print_connections()
     # dvc.print_coulors()
 

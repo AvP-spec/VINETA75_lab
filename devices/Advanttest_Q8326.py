@@ -3,6 +3,7 @@ import pandas as pd
 import pyvisa
 import os
 import time
+import subprocess
 
 class Q8326(BaseDevice):
     CONNECTION_SETTINGS = {
@@ -269,7 +270,7 @@ class Q8326(BaseDevice):
         return BaseDevice.disconnect(self)
 
 if __name__ == "__main__":
-    os.system('cls' if os.name == 'nt' else 'clear')
+    subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
     print("starting Advanttest_Q8326.py ...")
 
     wlm = Q8326()

@@ -2,7 +2,7 @@
 MyPythonClasses/
 devices/drafts/
 SpyderFiles/spyder_config_backup/
-test.py
+devices/test.py
 
 # --- nextcloud related ---
 *.sync-conflict-*

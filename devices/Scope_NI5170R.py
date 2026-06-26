@@ -34,6 +34,8 @@ style = TerminalColours()
 class ScopeNI5170R(TerminalColours):
     '''
     Driver class for NI PXIe-5170R oscilloscope.
+    Uses niscope directly (not pyvisa/BaseDevice),
+    since NI-SCOPE has its own resource manager.
 
     Usage:
         scope = ScopeNI5170R()
