@@ -89,7 +89,7 @@ FILTER = {
 REFERENCE_LINES = [
     # {'value': 667.91e-9, 'label': 'Ar I  667.91 nm',  'ls': '--'},
     # {'value': 667.7282e-9, 'label': 'Ar I  667.7282 nm', 'ls': '--'},
-     {'value': 668.42924e-9, 'label': 'Ar II 668.42924 nm',  'ls': ':'},
+    # {'value': 668.42924e-9, 'label': 'Ar II 668.42924 nm',  'ls': ':'},
 ]
 
 # --- Linearer Fit pro Gruppe ---
