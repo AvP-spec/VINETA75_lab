@@ -11,6 +11,7 @@ import os
 import math
 import pandas as pd
 import matplotlib.pyplot as plt
+import subprocess
 
 from pathlib import Path
 import sys
@@ -426,7 +427,7 @@ class PilotPZ(BaseDevice):
         plt.ioff()
         print("laser_monitor() finished. Close the plot window to exit.")
         df = pd.DataFrame(results)
-        plt.show(block=True)        # <-- wartet auf Schließen des Fensters
+        plt.show(block=True)
         df.set_index('time_s', inplace=True)
 
         return df
@@ -548,9 +549,9 @@ class PilotPC4000(PilotPZ):
 
 
 if __name__ == "__main__":
+    subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
     print("======= pilot_pz.py modul ==========")
     
-    os.system('cls' if os.name == 'nt' else 'clear')
     master_diode = PilotPZ500()
     master_diode.connect(silent=False)
     amplifier_diode = PilotPC4000()

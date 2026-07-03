@@ -72,7 +72,7 @@ amplif_current_A, amplif_temperature_C, amplif_power, daq_lif_signal_V, daq_lif_
 """
 
 # --- Fehlerbalken ---
-# Option A: Spaltenname für absolute Fehler (aus dem CSV)
+# Option A: Spaltenname für absolute Fehler (aus dem CSV), z.B. 'wl_std_m'
 # Option B: Float für relativen Fehler (z.B. 0.001 = 0.1%)
 # Option C: None für keine Fehlerbalken
 X_ERR_COL = None
@@ -88,7 +88,8 @@ FILTER = {
 # --- Referenzlinien (Y-Werte in Daten-Einheit, None = keine) ---
 REFERENCE_LINES = [
     # {'value': 667.91e-9, 'label': 'Ar I  667.91 nm',  'ls': '--'},
-    # {'value': 668.40e-9, 'label': 'Ar II 668.40 nm',  'ls': ':'},
+    # {'value': 667.7282e-9, 'label': 'Ar I  667.7282 nm', 'ls': '--'},
+    # {'value': 668.42924e-9, 'label': 'Ar II 668.42924 nm',  'ls': ':'},
 ]
 
 # --- Linearer Fit pro Gruppe ---
@@ -101,7 +102,7 @@ COLORMAP = 'tab10'   # 'plasma', 'coolwarm', 'viridis', 'tab10', ...
 FIGSIZE = (11, 7)
 
 # --- Tick-Dichte ---
-MAX_X_TICKS = 5
+MAX_X_TICKS = 7
 MAX_Y_TICKS = 5
 
 # --- Hysteresis-Mode ---
@@ -129,17 +130,29 @@ COL_CONFIG = {
         'format': '{:.1f}',
         'short':  'piezo',
     },
-    'master_current_mA': {
-        'label':  'Master-Strom [mA]',
-        'scale':  1.0,
-        'format': '{:.0f}',
+    'master_current_A': {
+        'label':  'Master-Strom [A]',
+        'scale':  1e3,
+        'format': '{:.3f}',
         'short':  'Im',
+    },
+    'master_set_current_A': {
+        'label':  'Master-Set-Strom [A]',
+        'scale':  1e3,
+        'format': '{:.3f}',
+        'short':  'setIm',
     },
     'amplif_current_A': {
         'label':  'Amplifier-Strom [A]',
         'scale':  1.0,
-        'format': '{:.0f}',
+        'format': '{:.3f}',
         'short':  'Ia',
+    },
+    'amplif_set_current_A': {
+        'label':  'Amplifier-Set-Strom [A]',
+        'scale':  1.0,
+        'format': '{:.3f}',
+        'short':  'setIa',
     },
     'master_temperature_C': {
         'label':  'Master-Temperatur [°C]',
@@ -165,17 +178,29 @@ COL_CONFIG = {
         'format': '{:.3f}',
         'short':  'wl_std',
     },
-    'ch0': {
-        'label': 'Kanal 0 [V]',
-        'scale': 1.0,
+    'master_photo_diode_current_A': {
+        'label':  'Master Photodioden-Strom [mA]',
+        'scale':  1e3,
         'format': '{:.3f}',
-        'short': 'ch0'
-    }, 
-    'ch1': {
-        'label': 'Kanal 1 [V]',
-        'scale': 1.0,
+        'short':  'PDm',
+    },
+    'master_power': {
+        'label':  'Master Leistung [W]',
+        'scale':  1.0,
         'format': '{:.3f}',
-        'short': 'ch1'
+        'short':  'Pm',
+    },
+    'amplif_photo_diode_current_A': {
+        'label':  'Amplifier Photodioden-Strom [mA]',
+        'scale':  1e3,
+        'format': '{:.3f}',
+        'short':  'PDa',
+    },
+    'amplif_power': {
+        'label':  'Amplifier Leistung [W]',
+        'scale':  1.0,
+        'format': '{:.3f}',
+        'short':  'Pa',
     },
 }
 
@@ -510,6 +535,8 @@ def plot_flex(df: pd.DataFrame,
                 'rate':   coeffs[0],
                 'offset': coeffs[1],
             })
+    
+    # print(fit_rates)
 
 
     # zusätzliche Legende
@@ -542,6 +569,7 @@ def plot_flex(df: pd.DataFrame,
                 color     = 'black',
                 alpha     = 1.0,
             )
+
 
     # Fit-Raten Textbox
     if linear_fit and fit_rates:

@@ -51,7 +51,7 @@ print(f"\n{tc.BLUE}============ laser_characterization.py ============{tc.RESET}
 # ----------------------------------------------------------------
 
 # --- Laser Auswahl ---
-LASER_TYPE = 'master'
+LASER_TYPE = 'amplifier'
 
 LASER_MAP = {
     'master': {
@@ -86,6 +86,10 @@ CURRENT_MIN_MA   = 70.0     # mA
 CURRENT_MAX_MA   = 70.0     # mA
 CURRENT_STEP_MA  = 10.0      # mA
 CURRENT_SETTLE_S = 2.0      # Wartezeit nach Stromänderung
+N_WLM            = 3        # Wellenlängenmessungen pro Piezo-Punkt
+V_STEP           = 13.5      # Piezo-Schrittweite [V]
+ZIGZAG           = False
+HYSTERESIS       = False     # Hysteresis Messung
 N_WLM            = 3        # Wellenlängenmessungen pro Piezo-Punkt
 V_STEP           = 13.5      # Piezo-Schrittweite [V]
 ZIGZAG           = False
@@ -140,7 +144,7 @@ try:
         print(f"\n{'─'*50}")
         print(f"  Scan {i_idx+1}/{len(i_list_mA)}: I = {i_mA:.1f} mA")
         print(f"{'─'*50}")
-
+        
         # Strom setzen und warten
         laser_obj.set_current(i_mA * 1e-3, unit="A", silent=True)
         time.sleep(CURRENT_SETTLE_S)
@@ -185,7 +189,7 @@ try:
     meta.update(r_man.get_device_state_meta())
 
 finally:
-    print(f"  Setting {laser_name} to safe current: {safe_current*1e3:.f} mA.")
+    print(f"  Setting {laser_name} to safe current: {safe_current*1e3:.1f} mA.")
     laser_obj.set_current(
         safe_current, unit="A", silent=True
     )

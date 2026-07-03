@@ -4,7 +4,7 @@
         "USB0::1003::8293::GPIB_06_4423030363035131A1C0::0::INSTR": "wavelength meter"
     },
     "USB": {
-        "VID:PID = 0403:6001": "Pilot series",
+        "VID:PID:SER = 0403:6001:None": "FTDI: Future Technology Devices International Ltd, Pilot series?",
         "VID:PID:SER = 2341:0043:24238313635351910130": "Arduino-AvP",
         "VID:PID:SER = 2341:0043:859373138373518122F1": "Arduino-Erik"
     }

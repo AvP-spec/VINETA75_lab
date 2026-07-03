@@ -77,17 +77,17 @@ safe_temp     = active_laser['safe_temp']
 safe_current  = active_laser['safe_current']
 has_piezo     = active_laser['has_piezo']
 
-BASE_PATH      = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud Manz/DATA/")
-FILE_BASE_NAME = f"{LASER_TYPE}_temperature_characterization"
-COMMENT        = f"Piezo-Scan für {laser_name} Laser, Temperaturen {TEMP_MIN_C} - {TEMP_MAX_C} °C in {TEMP_STEP_C} °C Schritten"
-
-TEMP_MIN_C       = 20.0     # °C min=-5
+TEMP_MIN_C       = 15.0     # °C min=-5
 TEMP_MAX_C       = 25.0     # °C max=30
 TEMP_STEP_C      = 5.0      # °C
-N_WLM            = 3        # Wellenlängenmessungen pro Piezo-Punkt
+N_WLM            = 5        # Wellenlängenmessungen pro Piezo-Punkt
 V_STEP           = 13.5     # Piezo-Schrittweite [V]
 ZIGZAG           = False
 HYSTERESIS       = False
+
+BASE_PATH      = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud_Manz/DATA/")
+FILE_BASE_NAME = f"{LASER_TYPE}_temperature_characterization"
+COMMENT        = f"Piezo-Scan für {laser_name} Laser, Temperaturen {TEMP_MIN_C} - {TEMP_MAX_C} °C in {TEMP_STEP_C} °C Schritten"
 
 """
 "limits": {"max": 30, "min": -5, "unit": "[C]", "resolution": 1E-3},
@@ -130,6 +130,11 @@ print(f"Daten werden gespeichert in:\n  {data_dir}\nCSV:  {file_path_csv.name}\n
 # Messung
 # ----------------------------------------------------------------
 r_man  = LIFManager()
+if LASER_TYPE == 'master':
+    laser_obj = r_man.master_diode
+else:
+    laser_obj = r_man.amplifier_diode
+
 df_all = None
 
 try:
