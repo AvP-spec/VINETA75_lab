@@ -168,22 +168,19 @@ class LIFManager(TerminalColours):
             except Exception as e:
                 task_results[index] = {f"{label}_error": str(e)}
 
-        tasks = [
-            (0, 'wlm', self.wlm, 'read', 
-            {'silent': silent, 'device_read_time': device_read_time}),
-            
-            (1, 'master', self.master_diode, 'read_laser', 
-            {'device_read_time': device_read_time}),
-            
-            (2, 'amplif', self.amplifier_diode, 'read_laser', 
-            {'device_read_time': device_read_time}),
-            
-            (3, 'lia', self.lia, 'read_signal', 
-            {'silent': silent, 'device_read_time': device_read_time}),
-            
-            (4, 'daq', self.daq, 'read_lif_signal', 
-            {'silent': silent, 'device_read_time': device_read_time}),
-        ]
+        # Definiere nur Aufgaben für Geräte, die in __init__ definiert wurden
+        tasks = []
+        if hasattr(self, 'wlm'):
+            tasks.append((0, 'wlm', self.wlm, 'read', {'silent': silent, 'device_read_time': device_read_time}))
+        if hasattr(self, 'master_diode'):
+            tasks.append((1, 'master', self.master_diode, 'read_laser', {'device_read_time': device_read_time}))
+        if hasattr(self, 'amplifier_diode'):
+            tasks.append((2, 'amplif', self.amplifier_diode, 'read_laser', {'device_read_time': device_read_time}))
+        if hasattr(self, 'lia'): # Prüft ob self.lia existiert
+            tasks.append((3, 'lia', self.lia, 'read_signal', {'silent': silent, 'device_read_time': device_read_time}))
+        if hasattr(self, 'daq'): # Prüft ob self.daq existiert
+            tasks.append((4, 'daq', self.daq, 'read_lif_signal', {'silent': silent, 'device_read_time': device_read_time}))
+
 
         threads = []
         for index, label, device, method_name, kwargs in tasks:
@@ -1857,7 +1854,7 @@ if __name__ == "__main__":
         finally: 
             r_man.laser_off()
 
-    # test_laser()
+    test_laser()
 
 
     def test_scan_piezo():

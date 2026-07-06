@@ -82,12 +82,14 @@ class PilotPZ(BaseDevice):
         # print(device_list)
         # print(self.hwid)
         pilot_list = [dev for dev in device_list if self.hwid in dev[2]]    # <-- dev[2] kann jetzt VID:PID:SER = 0403:6001:None sein
-        # print(pilot_list)
+        print(pilot_list)
         for pilot in pilot_list:
             self.port = self._com_to_visa(pilot[0])
             try:
                 BaseDevice.connect(self, silent=silent)
+                print(f"{self.IDN=}")
                 IDN_ = self.read_value("*IDN?")
+                print(f"{IDN_=}")
                 if not silent:
                     print(f"{IDN_=}")
                 if IDN_ == self.IDN:
@@ -95,6 +97,7 @@ class PilotPZ(BaseDevice):
                           f" on port {self.BLUE}{self.port}{self.RESET} \n")
                     if not silent:
                         print("=+=+= PilotPZ.connect() ended =+=+=")
+                    
                     return self
                 else:
                     print(f"{self.YELLOW} Wrong device on {self.port}, disconnecting..."
@@ -496,7 +499,7 @@ class PilotPZ500(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID = 0403:6001"   # <-- ist in base_devise geregelt
+        self.hwid = "VID:PID:SER = 0403:6001"   # <-- ist in base_devise geregelt
         
         self.IDN = "Sacher Lasertechnik, PilotPC 500, SN14092044, SW V8.00 HW V9.0 PZ V8.0"
         self.name = "PilotPC 500"
@@ -529,7 +532,7 @@ class PilotPC4000(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID = 0403:6001"   # <-- ist in base_devise geregelt
+        self.hwid = "VID:PID:SER = 0403:6001"   # <-- ist in base_devise geregelt
 
         self.name = "PilotPC4000"
         self.IDN = "Sacher Lasertechnik, PilotPC 4000, SN15093017, SW V8.00 HW V9.0"
@@ -555,7 +558,9 @@ if __name__ == "__main__":
     master_diode = PilotPZ500()
     master_diode.connect(silent=False)
     amplifier_diode = PilotPC4000()
-    # amplifier_diode.connect(silent=False)
+    amplifier_diode.connect(silent=False)
+    
+    
     
     master_diode.print_connections()
     
