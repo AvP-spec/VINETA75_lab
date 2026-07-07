@@ -25,6 +25,7 @@ dependencies:
     - pip
     - pip: 
       - niscope
+      - zeroconfig
 #	  - pathlib  # core python packege 
     
     

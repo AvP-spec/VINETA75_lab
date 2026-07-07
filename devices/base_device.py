@@ -121,45 +121,27 @@ class BaseDevice(TerminalColours):
             pid = f"{port.pid:04X}" if port.pid is not None else "None"   
             serial_no = f"{port.serial_number}" if port.serial_number is not None else "None"
             
-            # Symlink nur unter Linux prüfen
-            symlink_name = None
-            if os.name != 'nt':  # nicht Windows
-                dev_path = Path(port.device)
-                for link in Path("/dev").iterdir():
-                    if link.name.startswith("ttyPilot"):    # finds entries in /etc/udev/rules.d
-                        try:
-                            if link.resolve() == dev_path.resolve():
-                                symlink_name = link.name
-                                break
-                        except Exception:
-                            pass
+            # Windows generates a fake serial number for FTDI devices.
+            # check if the serial number is fake. 
+            if os.name == "nt" and vid == "0403":
+                fake = self._is_windows_serial_fake(port, silent=True)
+                if fake is False:
+                    serial_no = f"{port.serial_number}"  # use the actual serial number
+                else:
+                    serial_no = "None"  # avoid Windows generated serial number
             
-            # Priorität: SER+Symlink → SER → VID:PID
-            hwid_full_sym = f"VID:PID:SER = {vid}:{pid}:{serial_no}:{symlink_name}" if symlink_name else None
+            
+            
+            # Priorität: VID:PID:SER → VID:PID
             hwid_full     = f"VID:PID:SER = {vid}:{pid}:{serial_no}"
             hwid_short    = f"VID:PID = {vid}:{pid}"
 
-            if hwid_full_sym and hwid_full_sym in self.DEVICE_DIKT:
-                hwid_ = hwid_full_sym
-            elif hwid_full in self.DEVICE_DIKT:
+            if hwid_full in self.DEVICE_DIKT:
                 hwid_ = hwid_full
             elif hwid_short in self.DEVICE_DIKT:
                 hwid_ = hwid_short
             else:
                 hwid_ = hwid_full  # für "not in DEVICE_DIKT" Ausgabe
-                
-            # Windows generates a fake serial number for FTDI devices.
-            # check if the serial number is fake. 
-            if os.name == "nt":
-                fake = self._is_windows_serial_fake(port, silent=True)
-                if not fake:
-                    serial_no = f"{port.serial_number}"  # use the actual serial number
-                else:
-                    serial_no = "None"  # avoid Windows generated serial number
-                
-
-            # constract hardware identificator
-            hwid_ = f"VID:PID:SER = {vid}:{pid}:{serial_no}"
 
             if hwid_ in self.DEVICE_DIKT:
                 device_list.append([port.device, self.DEVICE_DIKT[hwid_], hwid_ ])
@@ -299,7 +281,7 @@ class BaseDevice(TerminalColours):
         try: 
           #  self.connection = self.rm.open_resource(self.port, **self.CONNECTION_SETTINGS)
             self.__inst = self.rm.open_resource(self.port, **self.CONNECTION_SETTINGS)
-            print(f"{self.GREEN}Connected to {self.name} on {self.port}{self.RESET}")
+            print(f"\n {self.GREEN}Connecting to {self.name} on {self.port}{self.RESET}")
             self.after_connect(silent=silent)
         except Exception as e:
             print(f_id)

@@ -48,13 +48,36 @@ class PilotPZ(BaseDevice):
         self.laser_mode = None
         self.IDN = None
 
+    def _get_COM_connections(self):
+        '''
+        override of base_device._get_COM_connections(): adds udev-symlink-name to hwid, if found. 
+        Only to distinguish devices in print_connections() / debug output. 
+        connect() logic is still working with *IDN? query. 
+        '''
+        device_list = super()._get_COM_connections()
+        if os.name == 'nt':  # Symlinks gibt es nur unter Linux (udev)
+            return device_list
+ 
+        for dv in device_list:
+            dev_path = Path(dv[0])
+            for link in Path("/dev").iterdir():
+                if not link.name.startswith("ttyPilot"):  # siehe /etc/udev/rules.d
+                    continue
+                try:
+                    if link.resolve() == dev_path.resolve():
+                        dv[-1] = f"{dv[-1]}:{link.name}"
+                        break
+                except Exception:
+                    pass
+        return device_list
+
 
     def after_connect(self, silent=True):
         if not silent:
             print("\n=== PilotPZ after_connect() ===")
         
         try:
-            # claer instrument
+            # clear instrument
             self.connection.write("*CLS")
             self.flush_buffer(silent=silent)
             self.send_command(":SYSTem:Echo OFF", silent=silent)
@@ -81,7 +104,7 @@ class PilotPZ(BaseDevice):
         device_list = self._get_COM_connections()
         # print(device_list)
         # print(self.hwid)
-        pilot_list = [dev for dev in device_list if self.hwid in dev[2]]    # <-- dev[2] kann jetzt VID:PID:SER = 0403:6001:None sein
+        pilot_list = [dev for dev in device_list if self.hwid in dev[2]]    # dev[2] kann zusätzlich ":ttyPilot500"/":ttyPilot4000" enthalten (nur Linux, rein informativ)
         # print(pilot_list)
         for pilot in pilot_list:
             self.port = self._com_to_visa(pilot[0])
@@ -496,7 +519,7 @@ class PilotPZ500(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID = 0403:6001"   # <-- ist in base_devise geregelt
+        self.hwid = "VID:PID:SER = 0403:6001:None"   # <-- ist in base_devise geregelt
         
         self.IDN = "Sacher Lasertechnik, PilotPC 500, SN14092044, SW V8.00 HW V9.0 PZ V8.0"
         self.name = "PilotPC 500"
@@ -529,7 +552,7 @@ class PilotPC4000(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID = 0403:6001"   # <-- ist in base_devise geregelt
+        self.hwid = "VID:PID:SER = 0403:6001:None"   # <-- ist in base_devise geregelt
 
         self.name = "PilotPC4000"
         self.IDN = "Sacher Lasertechnik, PilotPC 4000, SN15093017, SW V8.00 HW V9.0"
@@ -555,7 +578,7 @@ if __name__ == "__main__":
     master_diode = PilotPZ500()
     master_diode.connect(silent=False)
     amplifier_diode = PilotPC4000()
-    # amplifier_diode.connect(silent=False)
+    amplifier_diode.connect(silent=False)
     
     master_diode.print_connections()
     
@@ -678,5 +701,8 @@ if __name__ == "__main__":
     # print(master_diode.read_piezo())
     # master_diode.set_defoults()
 
+    amplifier_diode.switch_off()
+    master_diode.switch_off()
+    
     master_diode.disconnect()
     amplifier_diode.disconnect()
