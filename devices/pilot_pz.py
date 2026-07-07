@@ -340,7 +340,6 @@ class PilotPZ(BaseDevice):
         return df
 
 
-
     ####### set functions #######
     def set_defoults(self):
         for cmd in self.DEFOLT_SETTINGS:
