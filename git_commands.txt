@@ -10,8 +10,17 @@ git push -u origin main
 git log --oneline --graph --decorate -n 5
 
 git remote -v # list all remotes
-git fetch Lab_avp
+git fetch origin
 git diff main Lab_avp/main --stat
+
+git diff --staged devices/arduino_AvP.py
+git diff --name-status origin/main  ## see modified file names
+
+
+#########################################################
+################### fetch from Gitea ##################
+git fetch origin
+git difftool origin/main -- local_path/file
 
 #########################################################
 ################### push to Gitea ##################

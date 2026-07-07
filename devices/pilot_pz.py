@@ -78,10 +78,10 @@ class PilotPZ(BaseDevice):
             print(f"{self.RED} Select subclass PilotPZ500 or PilotPC4000{self.RESET}")
             return self
         device_list = self._get_COM_connections()
-        # print(device_list)
-        # print(self.hwid)
+        print(device_list)
+        print(self.hwid)
         pilot_list = [dev for dev in device_list if dev[2] == self.hwid]
-        # print(pilot_list)
+        print(f"{pilot_list=}")
         for pilot in pilot_list:
             self.port = self._com_to_visa(pilot[0])
             try:
@@ -384,7 +384,6 @@ class PilotPZ(BaseDevice):
             time.sleep(self.time_sleep)
         
 
-
     def switch_off(self, silent=True):
         self.send_command("Laser:STATus OFF", silent=silent)
         status = self.read_status(silent=silent)
@@ -403,7 +402,7 @@ class PilotPZ500(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID:SER = 0403:6001:6"
+        self.hwid = "VID:PID:SER = 0403:6001:None"
         self.IDN = "Sacher Lasertechnik, PilotPC 500, SN14092044, SW V8.00 HW V9.0 PZ V8.0"
         self.name = "PilotPC 500"
         self.current = {
@@ -435,7 +434,7 @@ class PilotPC4000(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID:SER = 0403:6001:6"
+        self.hwid = "VID:PID:SER = 0403:6001:None"
         self.name = "PilotPC4000"
         self.IDN = "Sacher Lasertechnik, PilotPC 4000, SN15093017, SW V8.00 HW V9.0"
         self.current = {
@@ -455,9 +454,9 @@ class PilotPC4000(PilotPZ):
 if __name__ == "__main__":
     os.system('cls' if os.name == 'nt' else 'clear')
     master_diode = PilotPZ500()
-    master_diode.connect(silent=True)
+    master_diode.connect(silent=False)
     amplifier_diode = PilotPC4000()
-    amplifier_diode.connect()
+    amplifier_diode.connect(silent=False)
     print()
     
     def read_limits(laser:object):
@@ -486,10 +485,10 @@ if __name__ == "__main__":
         print("="*100)
 
 
-    read_limits(master_diode)
-    read_limits(amplifier_diode)
-    print(master_diode.read_laser())
-    print(amplifier_diode.read_laser())
+    # read_limits(master_diode)
+    # read_limits(amplifier_diode)
+    # print(master_diode.read_laser())
+    # print(amplifier_diode.read_laser())
 
     # print(master_diode.laser_monitor_df(n_measurements=5))
     # print(amplifier_diode.laser_monitor_df(n_measurements=5))
@@ -507,10 +506,7 @@ if __name__ == "__main__":
         master_diode.switch_off()
         amplifier_diode.switch_off()
 
-    test_laser_monitor()
-
-
-
+   # test_laser_monitor()
 
     def scan_laser_parameters(laser:object, silent=False):
         print(f"=== {laser.GREEN} scan_laser_parameters() {laser.RESET}===")

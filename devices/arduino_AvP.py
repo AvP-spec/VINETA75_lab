@@ -2,6 +2,7 @@ from base_device import BaseDevice
 import pyvisa
 import time
 import os
+import subprocess
 
 class ArduinoAvP(BaseDevice):
     CONNECTION_SETTINGS = {
@@ -21,7 +22,7 @@ class ArduinoAvP(BaseDevice):
 
 
 if __name__ == "__main__":
-    os.system('cls')
+    subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
     arduino = ArduinoAvP()
     arduino.print_connections()
     #print(f"{arduino.connection=}")
