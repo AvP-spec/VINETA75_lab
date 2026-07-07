@@ -78,7 +78,40 @@ class PilotPZ(BaseDevice):
         if not self.IDN:
             print(f"{self.RED} Select subclass PilotPZ500 or PilotPC4000{self.RESET}")
             return self
-        device_list = self._get_COM_connections()
+
+        # --- Windows: hardcoded COM-port map to avoid resource conflicts ---
+        # FTDI devices have no unique SER on Windows, so the IDN-loop would open
+        # an already-connected device and get the wrong IDN back.
+        # Ports are fixed for this lab setup and will not change.
+        if os.name == "nt": 
+            WINDOWS_PORT_MAP = {
+                "Sacher Lasertechnik, PilotPC 500, SN14092044, SW V8.00 HW V9.0 PZ V8.0":  "COM4",
+                "Sacher Lasertechnik, PilotPC 4000, SN15093017, SW V8.00 HW V9.0":         "COM9",
+
+            }
+            com_port = WINDOWS_PORT_MAP.get(self.IDN)
+            if com_port is None:
+                print(f"{self.RED}connect() ERROR: {self.name} not found in WINDOWS_PORT_MAP.{self.RESET}")
+                print(f"IDN '{self.IDN}' has no entry - update WINDOWS_PORT_MAP in PilotPZ.connect()")
+                return self
+            self.port = self._com_to_visa(com_port)
+            BaseDevice.connect(self, silent=silent)
+            IDN_ = self.read_value("*IDN?")
+            if IDN_ == self.IDN:
+                print(f"\n{self.BLUE}{self.name}{self.GREEN} connected"
+                      f" on port {self.BLUE}{self.port}{self.RESET} \n")
+            else:
+                print(f"{self.RED}connect() ERROR: IDN mismatch on {self.port}!{self.RESET}")
+                print(f"  expected: '{self.IDN}'")
+                print(f"  got:      '{IDN_}'")
+                print(f"  Check WINDOWS_PORT_MAP or cable connections.")
+                self.disconnect()
+            if not silent:
+                print("=+=+= PilotPZ.connect() ended =+=+=")
+            return self
+
+        # --- Linux: IDN-Loop over all matching ports ---
+        device_list = super()._get_COM_connections()
         # print(device_list)
         # print(self.hwid)
         pilot_list = [dev for dev in device_list if self.hwid in dev[2]]    # <-- dev[2] kann jetzt VID:PID:SER = 0403:6001:None sein
@@ -499,7 +532,7 @@ class PilotPZ500(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID:SER = 0403:6001"   # <-- ist in base_devise geregelt
+        self.hwid = "VID:PID:SER = 0403:6001:None"   # <-- ist in base_devise geregelt
         
         self.IDN = "Sacher Lasertechnik, PilotPC 500, SN14092044, SW V8.00 HW V9.0 PZ V8.0"
         self.name = "PilotPC 500"
@@ -532,7 +565,7 @@ class PilotPC4000(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID:SER = 0403:6001"   # <-- ist in base_devise geregelt
+        self.hwid = "VID:PID:SER = 0403:6001:None"   # <-- ist in base_devise geregelt
 
         self.name = "PilotPC4000"
         self.IDN = "Sacher Lasertechnik, PilotPC 4000, SN15093017, SW V8.00 HW V9.0"
@@ -564,7 +597,7 @@ if __name__ == "__main__":
     
     master_diode.print_connections()
     
-    master_diode.read_limits()
+    # master_diode.read_limits()
     # amplifier_diode.read_limits()
     # master_diode.set_defoults()
     # amplifier_diode.set_defoults()
