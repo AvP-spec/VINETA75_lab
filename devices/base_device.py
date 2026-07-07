@@ -229,7 +229,7 @@ class BaseDevice(TerminalColours):
         try: 
           #  self.connection = self.rm.open_resource(self.port, **self.CONNECTION_SETTINGS)
             self.__inst = self.rm.open_resource(self.port, **self.CONNECTION_SETTINGS)
-            print(f"{self.GREEN}Connected to {self.name} on {self.port}{self.RESET}")
+            print(f"{self.GREEN}Connecting to {self.name} on {self.port}{self.RESET}")
             self.after_connect(silent=silent)
         except Exception as e:
             print(f_id)
