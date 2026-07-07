@@ -237,6 +237,23 @@ class ScopeNI5170R(TerminalColours):
         except Exception as e:
             print(f"{self.RED}configure_trigger() error: {e}{self.RESET}")
         return self
+    
+    def configure_trigger_immediate(self, silent: bool = True) -> "ScopeNI5170R":
+        '''
+        Immediate (software) trigger - acquires without waiting for a signal.
+        Use this for tests or when no hardware trigger is available.
+        '''
+        if self.__session is None:
+            print(f"{self.RED}configure_trigger_immediate(): not connected{self.RESET}")
+            return self
+        try:
+            self.__session.configure_trigger_immediate()
+            if not silent:
+                print(f"Trigger: IMMEDIATE (software)")
+        except Exception as e:
+            print(f"{self.RED}configure_trigger_immediate() error: {e}{self.RESET}")
+        return self
+
 
     # ------------------------------------------------------------------
     # acquisition
@@ -253,10 +270,10 @@ class ScopeNI5170R(TerminalColours):
         Returns
         -------
         dict with keys:
-            "time_s"   : np.ndarray  – time axis [s]
-            "ch{n}"    : np.ndarray  – voltage data per channel [V]
-            "dt_s"     : float       – sample interval [s]
-            "duration_s": float      – acquisition wall-clock time [s]
+            "time_s"   : np.ndarray  - time axis [s]
+            "ch{n}"    : np.ndarray  - voltage data per channel [V]
+            "dt_s"     : float       - sample interval [s]
+            "duration_s": float      - acquisition wall-clock time [s]
         '''
         if self.__session is None:
             print(f"{self.RED}read_waveform(): not connected{self.RESET}")
@@ -354,7 +371,7 @@ class ScopeNI5170R(TerminalColours):
         ax.legend()
         ax.grid(True, linestyle=":", alpha=0.6)
         plt.tight_layout()
-        plt.show()
+        plt.show(block=True)
         return self
 
 
@@ -390,14 +407,18 @@ if __name__ == "__main__":
 
     scope.read_actual_settings()
 
-    # configure trigger on channel 0
-    scope.configure_trigger(trigger_source="0", trigger_level=0.1, silent=False)
+    # --- Trigger wählen ---
+    # für Tests ohne Eingangssignal: Immediate Trigger
+    scope.configure_trigger_immediate(silent=True)
+    # für echtes Signal auf Kanal 0: 
+    # scope.configure_trigger(trigger_source="0", trigger_level=0.1, silent=False)
 
     # read waveform from channels 0 and 1
-    # df = scope.read_waveform_df(channels=[0, 1])
-    # print(df.head())
+    df = scope.read_waveform_df(channels=[0, 1, 2, 3, 4, 5, 6, 7])
+    print(df.head())
+    print(df.describe())
 
     # quick plot
-    # scope.plot_waveform(channels=[0, 1])
+    scope.plot_waveform(channels=[0, 1, 2, 3, 4, 5, 6, 7])
 
     scope.disconnect()

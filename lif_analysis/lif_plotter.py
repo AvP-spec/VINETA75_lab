@@ -1,5 +1,5 @@
 """
-lif_plotter_flex.py
+lif_plotter.py
 ===================
 Flexibles Plot-Skript für LIF-Messdaten.
 """
@@ -60,12 +60,12 @@ subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
 # KONFIGURATION – hier anpassen
 # ================================================================
 
-COMMENT   = "Ar-II-range"       # im Dateinamen
+COMMENT   = "scope_test"       # im Dateinamen
 
 # --- Achsen ---
-X_COL     = 'master_temperature_C'                # X-Achse
-Y_COL     = 'wl_mean_m'                 # Y-Achse
-GROUP_COL = 'master_piezo_off_set_V'    # Farbe + Symbol (dritte Größe)
+X_COL     = 'time_s'                # X-Achse
+Y_COL     = None                 # Y-Achse
+GROUP_COL = None    # Farbe + Symbol (dritte Größe)
 """ 
 time_s, piezo_V, wl_mean_m, wl_std_m, wl_err_m, master_current_A, master_temperature_C, master_power, master_piezo_off_set_V, 
 amplif_current_A, amplif_temperature_C, amplif_power, daq_lif_signal_V, daq_lif_std_V, lia_R, lia_X, lia_Y, lia_theta_deg 
@@ -106,8 +106,11 @@ MAX_X_TICKS = 7
 MAX_Y_TICKS = 5
 
 # --- Hysteresis-Mode ---
-HYSTERESIS_MODE = False
+HYSTERESIS_MODE     = False
 N_HYSTERESIS_ARROWS = 5
+
+OSCILLOSCOPE_MODE   = True
+OSC_CHANNELS        = ['ch0','ch1']
 
 # ================================================================
 # Achsenbeschriftungen und Skalierung
@@ -233,6 +236,8 @@ def load_csv(filepath: Path):
     with open(filepath, 'r', encoding='utf-8') as f:
         n_header = int(f.readline().split(':')[-1].strip())
     df = pd.read_csv(filepath, sep='\t', skiprows=n_header, index_col=0)
+    if df.index.name is not None: 
+        df = df.reset_index()
     return df, meta
 
 
@@ -328,6 +333,45 @@ def add_hysteresis_arrows(ax, x: np.ndarray, y: np.ndarray, color, n_arrows: int
                 lw         = 2.0,
             ),
         )
+
+def plot_oscilloscope(df: pd.DataFrame,
+                      time_col: str = 'time_s',
+                      channels: list = ['ch0', 'ch1'],
+                      colors:   list = ['tab:blue', 'tab:orange'],
+                      figsize: tuple = (12, 5),
+                      save_path: str = None,
+                      show: bool     = True,
+                      ) -> plt.Figure:
+    '''Plottet mehrere Oszilloskop-Kanäle über die Zeit.'''
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    for ch, col in zip(channels, colors):
+        if ch not in df.columns:
+            print(f"WARNUNG: Spalte '{ch}' nicht gefunden - übersprungen.")
+            continue
+        ax.plot(df[time_col], df[ch],
+                label     = ch,
+                color     = col,
+                linewidth = 1.0)
+
+    ax.set_xlabel('Zeit [s]', fontsize=20)
+    ax.set_ylabel('Spannung [V]', fontsize=20)
+    ax.tick_params(axis='both', labelsize=18, direction='in')
+    ax.set_title('Oszilloskop', fontsize=12, fontweight='bold')
+    ax.legend(fontsize=14)
+    ax.grid(True, linestyle='--', alpha=0.4)
+    set_axis_ticks(ax, max_x_ticks=MAX_X_TICKS, max_y_ticks=MAX_Y_TICKS)
+
+    plt.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Plot gespeichert: {save_path}")
+    if show:
+        plt.show(block=True)
+    plt.close(fig)
+    return fig
 
 # ================================================================
 # Plot-Funktion
@@ -616,18 +660,20 @@ if __name__ == '__main__':
     save_path = make_plot_filename(filepath, X_COL, Y_COL)
     print(f"Plot wird gespeichert als: {save_path.name}\n")
 
-    # --- Plot ---
-    plot_flex(
-        df              = df,
-        x_col           = X_COL,
-        y_col           = Y_COL,
-        group_col       = GROUP_COL,
-        x_err_col       = X_ERR_COL,
-        y_err_col       = Y_ERR_COL,
-        reference_lines = REFERENCE_LINES,
-        linear_fit      = LINEAR_FIT,
-        colormap        = COLORMAP,
-        figsize         = FIGSIZE,
-        save_path       = str(save_path),
-        show            = True,
-    )
+    if OSCILLOSCOPE_MODE: 
+        plot_oscilloscope(df, time_col='time_s', channels=OSC_CHANNELS, save_path=str(save_path), show=True)
+    else: 
+        plot_flex(
+            df              = df,
+            x_col           = X_COL,
+            y_col           = Y_COL,
+            group_col       = GROUP_COL,
+            x_err_col       = X_ERR_COL,
+            y_err_col       = Y_ERR_COL,
+            reference_lines = REFERENCE_LINES,
+            linear_fit      = LINEAR_FIT,
+            colormap        = COLORMAP,
+            figsize         = FIGSIZE,
+            save_path       = str(save_path),
+            show            = True,
+        )
