@@ -48,6 +48,29 @@ class PilotPZ(BaseDevice):
         self.laser_mode = None
         self.IDN = None
 
+    def _get_COM_connections(self):
+        '''
+        override of base_device._get_COM_connections(): adds udev-symlink-name to hwid, if found. 
+        Only to distinguish devices in print_connections() / debug output. 
+        connect() logic is still working with *IDN? query. 
+        '''
+        device_list = super()._get_COM_connections()
+        if os.name == 'nt':  # Symlinks gibt es nur unter Linux (udev)
+            return device_list
+ 
+        for dv in device_list:
+            dev_path = Path(dv[0])
+            for link in Path("/dev").iterdir():
+                if not link.name.startswith("ttyPilot"):  # siehe /etc/udev/rules.d
+                    continue
+                try:
+                    if link.resolve() == dev_path.resolve():
+                        dv[-1] = f"{dv[-1]}:{link.name}"
+                        break
+                except Exception:
+                    pass
+        return device_list
+
 
     def after_connect(self, silent=True):
         if not silent:
@@ -592,8 +615,6 @@ if __name__ == "__main__":
     amplifier_diode = PilotPC4000()
     amplifier_diode.connect(silent=False)
     
-    
-    
     master_diode.print_connections()
     
     # master_diode.read_limits()
@@ -715,5 +736,8 @@ if __name__ == "__main__":
     # print(master_diode.read_piezo())
     # master_diode.set_defoults()
 
+    amplifier_diode.switch_off()
+    master_diode.switch_off()
+    
     master_diode.disconnect()
     amplifier_diode.disconnect()
