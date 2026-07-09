@@ -75,7 +75,6 @@ class PilotPZ(BaseDevice):
     def after_connect(self, silent=True):
         if not silent:
             print("\n=== PilotPZ after_connect() ===")
-        
         try:
             # clear instrument
             self.connection.write("*CLS")
@@ -87,7 +86,6 @@ class PilotPZ(BaseDevice):
             print(f"{self.RED}IDN query failed:{self.RESET}", e)
         if not silent:
             print("=== PilotPZ after_connect() endend ===")
-
         return self
     
     def connect(self, silent=True):
