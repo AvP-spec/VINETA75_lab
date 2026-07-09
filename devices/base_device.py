@@ -279,10 +279,12 @@ class BaseDevice(TerminalColours):
             return self
         
         try: 
-          #  self.connection = self.rm.open_resource(self.port, **self.CONNECTION_SETTINGS)
             self.__inst = self.rm.open_resource(self.port, **self.CONNECTION_SETTINGS)
-            print(f"\n {self.GREEN}Connecting to {self.name} on {self.port}{self.RESET}")
-            self.after_connect(silent=silent)
+            print(f"{self.GREEN}Connected to {self.name} on {self.port}{self.RESET}")
+            after_connect_ok = self.after_connect(silent=silent)
+            if after_connect_ok is False:
+                print(f"{self.RED}after_connect() failed on {self.port}, closing connection.{self.RESET}")
+                self.disconnect()
         except Exception as e:
             print(f_id)
             print(f"{self.RED}Connection failed: {e}{self.RESET}")

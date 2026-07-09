@@ -75,18 +75,19 @@ class PilotPZ(BaseDevice):
     def after_connect(self, silent=True):
         if not silent:
             print("\n=== PilotPZ after_connect() ===")
+        success = True
         try:
             # clear instrument
             self.connection.write("*CLS")
             self.flush_buffer(silent=silent)
             self.send_command(":SYSTem:Echo OFF", silent=silent)
             self.send_command(":SYSTem:ACKnowledge ON", silent=silent)
-            # self.send_command("*IDN?")
         except Exception as e:
-            print(f"{self.RED}IDN query failed:{self.RESET}", e)
+            print(f"{self.RED}after_connect failed:{self.RESET}", e)
+            success = False
         if not silent:
             print("=== PilotPZ after_connect() endend ===")
-        return self
+        return success
     
     def connect(self, silent=True):
         '''
