@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 import json
 import subprocess
+import json
 
 ##### import project related moduls ####
 current_file = Path(__file__).resolve()
@@ -75,7 +76,7 @@ class BaseDevice(TerminalColours):
         return self
 
 
-    def _is_windows_serial_fake(self, port, silent=False):
+    def _is_windows_serial_fake(self, port, silent=False)-> bool:
         """
         Queries Windows if the serial number of a device is generated or read from the hardware.
         """
@@ -132,7 +133,6 @@ class BaseDevice(TerminalColours):
                 else:
                     serial_no = "None"  # avoid Windows generated serial number
                 
-
             # constract hardware identificator
             hwid_ = f"VID:PID:SER = {vid}:{pid}:{serial_no}" 
             if hwid_ in self.DEVICE_DIKT:
@@ -216,6 +216,72 @@ class BaseDevice(TerminalColours):
         print(f"Device {self.name} with HWID {self.hwid} not found!")
         print(f"probably it is not connected to COM port{self.RESET}")
         return self
+    
+
+    def get_COM_port_by_idn(self, idn_expected:str, silent=True, 
+                            idn_command:str='*IDN?', settle_time:float=2.0, 
+                            match_fn=None):
+        '''
+        Findet den Port eines Geräts anhand seiner Identifikations-Antwort.
+        Iteriert durch alle Ports mit passender VID:PID und sendet idn_command.
+        Plattformunabhängig – kein udev oder Seriennummer nötig.
+
+        idn_command: der zu sendende Identifikationsbefehl (Standard: SCPI '*IDN?').
+                     Manche Geräte (z.B. ältere Signal Recovery / Perkin Elmer
+                     Lock-In-Verstärker) benutzen stattdessen z.B. 'ID'.
+        settle_time: Wartezeit in Sekunden nach dem Öffnen des Ports, bevor
+                     abgefragt wird (z.B. für einen Reset des Geräts). 2.0 s
+                     Standard passt für Arduino-artige Geräte; für Geräte ohne
+                     Reset-beim-Verbinden (z.B. die meisten Messgeräte) kann
+                     0 übergeben werden, um die Suche zu beschleunigen.
+        match_fn:    optionale Funktion match_fn(response:str) -> bool, falls
+                     ein exakter Stringvergleich nicht ausreicht (z.B. bei
+                     Antworten mit zusätzlichen Zeichen).
+        '''
+        if self.hwid is None:
+            print(f"{self.RED}Error in get_COM_port_by_idn(): no hwid defined{self.RESET}")
+            return self
+
+        vid_pid = self.hwid  # z.B. "VID:PID = 0403:6001"
+        device_list = self._get_COM_connections()
+
+        # alle Ports mit passender VID:PID sammeln
+        candidates = [dv for dv in device_list if vid_pid in dv[-1]]
+
+        if not candidates:
+            print(f"{self.RED}No devices with {vid_pid} found!{self.RESET}")
+            return self
+
+        for dv in candidates:
+            port = self._com_to_visa(dv[0])
+            if not silent:
+                print(f"Trying {port} ...")
+            try:
+                inst = self.rm.open_resource(port, **self.CONNECTION_SETTINGS)
+                import time
+                if settle_time:
+                    time.sleep(settle_time)  # z.B. Arduino/Gerät Reset abwarten
+                idn = inst.query(idn_command).strip()
+                if not silent:
+                    print(f"  IDN: {idn}")
+                is_match = match_fn(idn) if match_fn is not None else (idn == idn_expected)
+                if is_match:
+                    inst.close()
+                    self.port = port
+                    print(f"{self.GREEN}Found {self.name} on {self.port}{self.RESET}")
+                    return self
+                inst.close()
+            except Exception as e:
+                if not silent:
+                    print(f"  Error: {e}")
+                try:
+                    inst.close()
+                except:
+                    pass
+
+        self.port = None
+        print(f"{self.RED}Device {self.name} with IDN '{idn_expected}' not found!{self.RESET}")
+        return self
 
 
     def connect(self, silent=True):
@@ -227,15 +293,20 @@ class BaseDevice(TerminalColours):
             return self
         
         try: 
-          #  self.connection = self.rm.open_resource(self.port, **self.CONNECTION_SETTINGS)
-            print(f"{self.GREEN} \n Connecting to {self.name} on {self.port}{self.RESET}")
+            if not silent:
+                print(f"{self.GREEN} \n pyvisa connecting to {self.name} on {self.port}{self.RESET}")
             self.__inst = self.rm.open_resource(self.port, **self.CONNECTION_SETTINGS)
+            if not silent:
+                print(f"{self.GREEN} pyvisa opened connection to {self.name} on {self.port}{self.RESET}")
+
             self.after_connect(silent=silent)
-            print(f"{self.GREEN}Connected to {self.name} on {self.port}{self.RESET} \n")
+            if not silent:
+                print(f"{self.GREEN} after_connect() successful on {self.port}{self.RESET}")
+       
         except Exception as e:
             print(f_id)
             print(f"{self.RED}Connection failed: {e}{self.RESET}")
-            
+            self.disconnect()
         return self
 
 
@@ -261,6 +332,9 @@ class BaseDevice(TerminalColours):
             except Exception as e:
                 print(f_id)
                 print(f"[{self.RED}{self.name}] Error at closing:{self.RESET} {e}")
+            
+            return self
+
 
             
             #finally:
@@ -276,4 +350,7 @@ if __name__ == "__main__":
 
     dvc.print_com_info()
     dvc.print_connections()
-    dvc.print_coulors()
+    # dvc.print_coulors()
+
+    # resources = dvc.rm.list_resources()
+    # print(resources)

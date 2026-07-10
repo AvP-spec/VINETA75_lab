@@ -1,13 +1,9 @@
-''' 
-v02->v03  working version
-re-writing PilotPZ500 and set_value() - archetectur change
-implemented *OPC? instead of time.sleep(0.1)
-'''
 
 from base_device import BaseDevice
 import pyvisa
 import time
 import os
+import subprocess
 import math
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -72,16 +68,19 @@ class PilotPZ(BaseDevice):
         Iterates through all ports matching the Pilot series HWID and validates 
         the connection by comparing the '*IDN?' response with the expected model.
         '''
-        if not silent:
-            print("=+=+= PilotPZ.connect() =+=+=")
+        
         if not self.IDN:
             print(f"{self.RED} Select subclass PilotPZ500 or PilotPC4000{self.RESET}")
             return self
+        
         device_list = self._get_COM_connections()
-        print(device_list)
-        print(self.hwid)
         pilot_list = [dev for dev in device_list if dev[2] == self.hwid]
-        print(f"{pilot_list=}")
+
+        if not silent:
+            print("=+=+= PilotPZ.connect() =+=+=")
+            print(f"{pilot_list=}")
+            print(f"{self.hwid=}")
+        
         for pilot in pilot_list:
             self.port = self._com_to_visa(pilot[0])
             try:
@@ -103,6 +102,7 @@ class PilotPZ(BaseDevice):
             except Exception as e:
                 print(f"Port {self.port} failed: {e}")
                 continue
+
         print(f"\n{self.RED}PilotPZ.connect() ERROR:{self.name} NOT FOUND!{self.RESET}")
         print(f"Please check if the device is POWERED ON and cables are connected.\n")
 
@@ -253,6 +253,9 @@ class PilotPZ(BaseDevice):
     
 
     def laser_monitor(self, n_measurements=5, sleep=None, plot=True, silent=False):
+        """attempt to read and plot the laser parameters in real time, 
+        returns a pandas dataframe with the results"""
+        
         if sleep is None:
             sleep= self.time_sleep
 
@@ -296,7 +299,7 @@ class PilotPZ(BaseDevice):
             ax_photo.set_title("Photo diode current [mA]")
             ax_power.set_title("Laser power [W?]")
 
-            plt.tight_layout() # Чтобы графики не наплывали друг на друга
+            plt.tight_layout()
             plt.show()
 
         t0 = None
@@ -451,7 +454,7 @@ class PilotPC4000(PilotPZ):
 
 
 if __name__ == "__main__":
-    os.system('cls' if os.name == 'nt' else 'clear')
+    subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
     master_diode = PilotPZ500()
     master_diode.connect(silent=False)
     amplifier_diode = PilotPC4000()

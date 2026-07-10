@@ -3,6 +3,8 @@ MyPythonClasses/
 devices/drafts/
 SpyderFiles/spyder_config_backup/
 devices/test.py
+# jupyter notebook files will be trasfered without git tracking.
+*.ipynb 
 
 # --- nextcloud related ---
 *.sync-conflict-*

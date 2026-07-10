@@ -16,13 +16,109 @@ git diff main Lab_avp/main --stat
 git diff --staged devices/arduino_AvP.py
 git diff --name-status origin/main  ## see modified file names
 
-
+git rm git rm path/to/file
 #########################################################
 ################### fetch from Gitea ##################
-git fetch origin
+# Download all history and branches from remote without changing local files
+git fetch origin 
+
+git checkout -b review/remote-updates origin/main
+
+# List all files that are different A-new, M-modified, D-deleted:
+git diff --name-status main..HEAD
+
+# List only new files (A) 
+git diff --name-only --diff-filter=A main origin/main
+# Copy all new files from origin/main to the active branch.
+git checkout origin/main -- $(git diff --name-only --diff-filter=A main origin/main)
+git add . 
+git commit -m "new files added from the remote"
+git status
+
+git checkout main -- path/to/file.ext
+git difftool origin/main -- path/to/file.ext
+git add . 
+git commit -m "file name"
+# see modified files
+git log --oneline main..HEAD
+git log --oneline --graph main..HEAD
+
+# switch to main
+git checkout main
+# merge chenges
+git merge review/remote-updates
+# in case of resolved fconflicts 
+git commit -m ""
+# delete the branch
+git branch -d review/remote-updates
+## force to delit ####
+git branch -D review/remote-updates 
+
+
+git reset --soft origin/main
+
 git difftool origin/main -- local_path/file
+#########################################################
+
+
+
+#############################################################
+##### get Eriks updates ##### fetch from Gitea ##################
+git fetch origin Eriks-branch:Eriks-branch
+
+## make and got to the review baranch on the base of Ericks-branch
+git checkout -b review origin/Eriks-branch
+
+## go back to main 
+git checkout main
+## List only files A (A-new, M-modified, D-deleted)
+git diff --name-only --diff-filter=A main review
+## Copy all new files from Eriks-branch to the active branch.
+git checkout Eriks-branch -- $(git diff --name-only --diff-filter=A main Eriks-branch)
+## save the changes 
+git add . 
+git commit -m "new files added"
+ 
+git diff --name-only --diff-filter=M main review
+## take file SpyderFiles/LIF-piezo_scan.py from review
+git checkout review -- SpyderFiles/LIF-piezo_scan.py
+
+## go to review
+git switch review
+git checkout main -- git_commands.txt
+## see files in main which are not in review
+git diff --name-only --diff-filter=A review main
+git diff --name-only review main
+
+git difftool main -- devices/base_device.py  # compare the files with version from main
+
+git switch main                             # go to main
+## shouold be something else ## git merge --squash review                    # collect all commits in one and merge to main
+git commit -m ""                             # save changes in main
+git branch -D review                         # delit branch review
 
 #########################################################
+
+################################################
+################# Look history ###################
+## Safely view file differences between local HEAD and origin/main in VS Code without modifying working directory files.
+git difftool HEAD origin/main -- path/to/file.ext
+
+## copy lif.py file from origin/main to main with name lif_avp.py
+git show origin/main:managers/lif.py > managers/lif_avp.py
+
+## compare file lif.py from commit af74b11 with file if_avp.py
+git difftool af74b11:managers/lif.py managers/lif_avp.py
+
+
+
+
+
+
+
+
+
+
 ################### push to Gitea ##################
 
 #### look and clean history
@@ -38,6 +134,7 @@ git fetch Lab_avp
 #### pull from Nextcloud 
 cd ~/Nextcloud/5360.AG_Manz/Programming/python/Lab_avp 
 git pull office main    # git pull (remote) (branch)
+
 # synchonization with main folder 
 cd /c/Andrei/LAB
 git fetch Lab_avp

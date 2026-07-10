@@ -14,6 +14,7 @@ print("Modular Mod is off")
 ### import of general moduls
 from datetime import datetime
 import time
+import pandas as pd
 #%%
 ### check print out format for time variables
 now = datetime.now()
@@ -26,7 +27,7 @@ print(timesamp)
 from managers.lif import LIFManager
 import utils.file_utils as fu
 
-#%%
+#%%assert 
 rm = LIFManager()
 rm_start_time = time.perf_counter()
 #%%
@@ -51,16 +52,21 @@ def file_meta_data():
 rm.wlm.average_on()
 rm.master_diode.set_piezo(0, "[V]")
 print(rm.master_diode.read_piezo())
-df = rm.scan_piezo(
-    v_step=3,
-    )
+
+scan_start_time = datetime.now()                # <-- exakter Startzeitpunkt bei Beginn der Messung
+df = rm.scan_piezo(v_step=3)
+
+df["abs_time"] = scan_start_time + pd.to_timedelta(df["start_time"], unit="s")
 
 data_dir = fu.make_data_dir(base_name="LIF/piezo_scan")
-file_path = fu.make_data_file_name(data_dir=data_dir,
-                                   base_name="average_ON",
-                                   extension="csv")
+file_path = fu.make_data_file_name(
+    data_dir=data_dir,
+    base_name="average_ON",
+    extension="csv"
+)
 
 meta = file_meta_data()
+meta["scan_start_time"] = str(scan_start_time)      # <-- Startzeitpunkt wird in den Header geschrieben
 fu.save_dataframe(df=df,
                   file_path=file_path,
                   metadata=meta,
@@ -75,15 +81,21 @@ fu.save_dataframe(df=df,
 rm.wlm.average_off()
 rm.master_diode.set_piezo(0, "[V]")
 print(rm.master_diode.read_piezo())
-df = rm.scan_piezo(
-    v_step=1,
-    )
+
+scan_start_time = datetime.now()
+df = rm.scan_piezo(v_step=1)
+
+df["abs_time"] = scan_start_time + pd.to_timedelta(df["start_time"], unit="s")
 
 data_dir = fu.make_data_dir(base_name="LIF/piezo_scan")
-file_path = fu.make_data_file_name(data_dir=data_dir,
-                                   base_name="average_OFF",
-                                   extension="csv")
+file_path = fu.make_data_file_name(
+    data_dir=data_dir,
+    base_name="average_OFF",
+    extension="csv"
+)
+
 meta = file_meta_data()
+meta["scan_start_time"] = str(scan_start_time)
 fu.save_dataframe(df=df,
                   file_path=file_path,
                   metadata=meta,
