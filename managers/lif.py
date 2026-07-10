@@ -6,6 +6,7 @@ import pandas as pd
 from pathlib import Path
 import os
 import sys
+import subprocess
 
 data_path = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud_Manz/DATA/lif_py_test")
 
@@ -18,7 +19,7 @@ if str(project_root) not in sys.path:
 from devices.Advanttest_Q8326 import Q8326
 from devices.pilot_pz import PilotPZ500, PilotPC4000
 # from devices.function_generator import FunctionGenerator
-# from devices.lock_in_amplifier import LockInAmplifier
+from devices.Perkin_Elmer_DS7780 import LockInAmplifier
 # from devices.daq import DAQ
 import utils.scan_utils as su
 from utils.terminal_styler import TerminalColours
@@ -36,7 +37,7 @@ class LIFManager(TerminalColours):
         self.wlm                = Q8326()
         self.scope              = None # not yet implemented
         # self.fg                 = FunctionGenerator()
-        # self.lia                = LockInAmplifier()
+        self.lia                = LockInAmplifier()
         # self.daq                = DAQ()
         self.scope              = ScopeJakobs() 
 
@@ -44,7 +45,7 @@ class LIFManager(TerminalColours):
         self._connect_device(self.amplifier_diode,  device_type="COM")
         self._connect_device(self.wlm,              device_type="GPIB")
         # self._connect_device(self.fg, device_type="COM")
-        # self._connect_device(self.lia, device_type="COM")
+        self._connect_device(self.lia,              device_type="COM")
         # self.daq.connect()
         self.scope.connect()
          
@@ -74,7 +75,7 @@ class LIFManager(TerminalColours):
         self.amplifier_diode.disconnect()
         self.wlm.disconnect()
         # self.fg.disconnect()
-        # self.lia.disconnect()
+        self.lia.disconnect()
         # self.daq.disconnect()
         self.scope.disconnect()
 
@@ -1812,7 +1813,7 @@ class LIFManager(TerminalColours):
 
 
 if __name__ == "__main__":
-    os.system('cls' if os.name == 'nt' else 'clear')
+    subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
     print(f"\n {style.MAGENTA}========= lif.py ========={style.RESET}")
     # print(f"{data_path=}")
     # print(f"{current_file=}")
@@ -1854,7 +1855,21 @@ if __name__ == "__main__":
         finally: 
             r_man.laser_off()
 
-    test_laser()
+    # test_laser()
+
+
+    def LIA_READ_TEST(n_measurements=10, sleep=0.2):
+        '''Liest n_measurements Werte vom Lock-In (X/Y) und gibt sie aus.
+        Erfordert keine Laser - reiner Kommunikationstest.'''
+        if r_man.lia.connection is None:
+            print(f"{style.RED}LIA_READ_TEST: Lock-In ist nicht verbunden{style.RESET}")
+            return
+        for i in range(n_measurements):
+            data = r_man.lia.read_signal(silent=False, device_read_time=True)
+            print(f"  [{i+1}/{n_measurements}] {data}")
+            time.sleep(sleep)
+
+    # LIA_READ_TEST()
 
 
     def test_scan_piezo():

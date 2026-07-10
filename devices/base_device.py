@@ -220,11 +220,25 @@ class BaseDevice(TerminalColours):
         return self
     
 
-    def get_COM_port_by_idn(self, idn_expected:str, silent=True):
+    def get_COM_port_by_idn(self, idn_expected:str, silent=True, 
+                            idn_command:str='*IDN?', settle_time:float=2.0, 
+                            match_fn=None):
         '''
-        Findet den Port eines Geräts anhand seiner IDN-Antwort.
-        Iteriert durch alle Ports mit passender VID:PID und sendet *IDN?.
+        Findet den Port eines Geräts anhand seiner Identifikations-Antwort.
+        Iteriert durch alle Ports mit passender VID:PID und sendet idn_command.
         Plattformunabhängig – kein udev oder Seriennummer nötig.
+
+        idn_command: der zu sendende Identifikationsbefehl (Standard: SCPI '*IDN?').
+                     Manche Geräte (z.B. ältere Signal Recovery / Perkin Elmer
+                     Lock-In-Verstärker) benutzen stattdessen z.B. 'ID'.
+        settle_time: Wartezeit in Sekunden nach dem Öffnen des Ports, bevor
+                     abgefragt wird (z.B. für einen Reset des Geräts). 2.0 s
+                     Standard passt für Arduino-artige Geräte; für Geräte ohne
+                     Reset-beim-Verbinden (z.B. die meisten Messgeräte) kann
+                     0 übergeben werden, um die Suche zu beschleunigen.
+        match_fn:    optionale Funktion match_fn(response:str) -> bool, falls
+                     ein exakter Stringvergleich nicht ausreicht (z.B. bei
+                     Antworten mit zusätzlichen Zeichen).
         '''
         if self.hwid is None:
             print(f"{self.RED}Error in get_COM_port_by_idn(): no hwid defined{self.RESET}")
@@ -247,11 +261,13 @@ class BaseDevice(TerminalColours):
             try:
                 inst = self.rm.open_resource(port, **self.CONNECTION_SETTINGS)
                 import time
-                time.sleep(2)  # Arduino/Gerät Reset abwarten
-                idn = inst.query('*IDN?').strip()
+                if settle_time:
+                    time.sleep(settle_time)  # z.B. Arduino/Gerät Reset abwarten
+                idn = inst.query(idn_command).strip()
                 if not silent:
                     print(f"  IDN: {idn}")
-                if idn == idn_expected:
+                is_match = match_fn(idn) if match_fn is not None else (idn == idn_expected)
+                if is_match:
                     inst.close()
                     self.port = port
                     print(f"{self.GREEN}Found {self.name} on {self.port}{self.RESET}")
