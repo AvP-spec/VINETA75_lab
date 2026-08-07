@@ -63,7 +63,7 @@ LASER_MAP = {
         'col_temp': 'amplif_temperature_C',
         'col_piezo': None,
         'safe_temp': 17.0,
-        'safe_current': 302 * 1e-3,
+        'safe_current': 500 * 1e-3,
         'has_piezo': False,
     }
 }

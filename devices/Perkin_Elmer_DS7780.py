@@ -16,22 +16,6 @@ RS232 Settings), bevor das hier funktioniert:
   DATA BITS   : 8 + no parity
   ECHO        : OFF    (sonst muss jede Antwort doppelt gelesen werden)
   PROMPT      : OFF    (sonst hängt "*"/"?" an jeder Antwort)
-
--------------------------------------------------------------------------
-Einmaliges Setup im Code:
--------------------------------------------------------------------------
-self.hwid muss auf die VID:PID des USB-RS232-Konverters gesetzt werden.
-Am einfachsten herausfinden mit:
-
-    from devices.lock_in_amplifier import LockInAmplifier
-    lia = LockInAmplifier()
-    lia.print_com_info()      # zeigt alle COM-Ports inkl. VID/PID
-
-Den passenden Eintrag (z.B. "VID:PID = 0403:6001" für einen FTDI-Chip,
-oder "0557:2008" für Prolific etc.) unten bei HWID eintragen. Ein Eintrag
-in devices_config.json ist NICHT zwingend nötig (get_COM_port_by_idn()
-identifiziert das Gerät zusätzlich aktiv über den 'ID'-Befehl -> Antwort
-'7280'), macht die Ausgabe von print_connections() aber lesbarer.
 """
 
 import time
@@ -49,7 +33,7 @@ from devices.base_device import BaseDevice
 
 # HWID des USB<->RS232-Konverters. Über lia.print_com_info() ermitteln und
 # hier eintragen (Format wie von BaseDevice erzeugt: "VID:PID = XXXX:YYYY").
-HWID = "VID:PID:SER = 1A86:7523:None"  # für den verwendeten Converter
+HWID = "VID:PID:SER = 1659:8963:None"  # für den verwendeten Converter
 
 
 class LockInError(Exception):
@@ -176,6 +160,19 @@ class LockInAmplifier(BaseDevice):
     def read_time_constant_s(self):
         """TC.: liest die aktuell eingestellte Zeitkonstante in Sekunden."""
         return float(self._query("TC."))
+    
+    def read_status_byte(self):
+        """ST: liest das Status-Byte (Kap. 6.3.13 im Handbuch) und gibt die
+        relevanten Fehlerbits als dict zurück. Wichtig für Datenqualität:
+        bit 3 = Referenz "unlocked", bit 4 = Overload (Signal übersteuert -
+        Messwert an diesem Punkt ist dann nicht vertrauenswürdig)."""
+        status = int(self._query("ST"))
+        return {
+            "invalid_command":  bool(status & (1 << 1)),
+            "parameter_error":  bool(status & (1 << 2)),
+            "reference_unlock": bool(status & (1 << 3)),
+            "overload":         bool(status & (1 << 4)),
+        }
 
     def read_xy(self):
         """XY.: liefert (X, Y) in Volt als Float-Tupel."""
@@ -189,35 +186,45 @@ class LockInAmplifier(BaseDevice):
         m_str, p_str = self._split_two_values(response)
         return float(m_str), float(p_str)
 
-    def read_signal(self, silent=True, device_read_time=False, mode="xy"):
+    def read_signal(self, silent=True, device_read_time=False, check_status=True):
         """
         Einheitliche Ausleseschnittstelle, kompatibel mit
         LIFManager.read_state() (wird dort automatisch mit 'lia_' geprefixt).
-
-        mode: 'xy' liefert X_V/Y_V, 'magphase' liefert Magnitude_V/Phase_deg.
+ 
+        Liefert X, Y, Magnitude und Phase in einem Aufruf (zwei Geräte-
+        Anfragen, XY. und MP.), sowie optional Overload-/Unlock-Flags -
+        wichtig, um übersteuerte oder unverlässliche Messpunkte im
+        Nachhinein leicht herausfiltern zu können (z.B. df[~df['lia_overload']]).
         """
         t_start = time.perf_counter()
-
+ 
         try:
-            if mode == "magphase":
-                val1, val2 = self.read_mag_phase()
-                data = {"Magnitude_V": val1, "Phase_deg": val2}
-            else:
-                val1, val2 = self.read_xy()
-                data = {"X_V": val1, "Y_V": val2}
+            x_v, y_v = self.read_xy()
+            mag_v, phase_deg = self.read_mag_phase()
+            data = {
+                "X_V": x_v,
+                "Y_V": y_v,
+                "R_V": mag_v,
+                "theta_deg": phase_deg,
+            }
+            if check_status:
+                status = self.read_status_byte()
+                data["overload"] = status["overload"]
+                data["ref_unlock"] = status["reference_unlock"]
         except Exception as e:
             if not silent:
                 print(f"{self.RED}[{self.name}] read_signal Fehler: {e}{self.RESET}")
             return {"error": str(e)}
-
+ 
         if device_read_time:
             data["read_start_s"] = t_start
             data["read_duration_s"] = time.perf_counter() - t_start
-
+ 
         if not silent:
             print(f"[{self.name}] {data}")
-
+ 
         return data
+
 
 
 if __name__ == "__main__":

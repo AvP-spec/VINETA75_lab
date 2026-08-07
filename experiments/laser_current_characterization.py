@@ -51,7 +51,7 @@ print(f"\n{tc.BLUE}============ laser_characterization.py ============{tc.RESET}
 # ----------------------------------------------------------------
 
 # --- Laser Auswahl ---
-LASER_TYPE = 'amplifier'
+LASER_TYPE = 'master'
 
 LASER_MAP = {
     'master': {
@@ -77,19 +77,15 @@ col_current  = active_laser['col_current']
 col_piezo    = active_laser['col_piezo']
 safe_current = active_laser['safe_current']
 
-BASE_PATH      = Path(r"C:\Users\andrei_lab\Nextcloud\5360.AG_Manz\DATA")
+BASE_PATH      = Path(r"/home/erikh/Schreibtisch/Studium/Nextcloud_Manz/DATA/")
 FILE_BASE_NAME = f"{LASER_TYPE}_current_characterization"
 COMMENT        = f"testing labor setup"
 
 LASER_WARMUP_S   = 5        # Wartezeit nach laser_on()
-CURRENT_MIN_MA   = 70.0     # mA
-CURRENT_MAX_MA   = 70.0     # mA
+CURRENT_MIN_MA   = 20.0     # mA
+CURRENT_MAX_MA   = 100.0     # mA
 CURRENT_STEP_MA  = 10.0      # mA
 CURRENT_SETTLE_S = 2.0      # Wartezeit nach Stromänderung
-N_WLM            = 3        # Wellenlängenmessungen pro Piezo-Punkt
-V_STEP           = 13.5      # Piezo-Schrittweite [V]
-ZIGZAG           = False
-HYSTERESIS       = False     # Hysteresis Messung
 N_WLM            = 3        # Wellenlängenmessungen pro Piezo-Punkt
 V_STEP           = 13.5      # Piezo-Schrittweite [V]
 ZIGZAG           = False

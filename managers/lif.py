@@ -303,9 +303,26 @@ class LIFManager(TerminalColours):
         result = []
         t0 = time.perf_counter()
 
+        # Einschwingzeit für den Lock-In: nach einem Sprung der Piezo-Spannung
+        # (und damit der Wellenlänge/des LIF-Signals) braucht der interne
+        # Tiefpassfilter des Lock-In ca. 5x seine Zeitkonstante, um sich auf
+        # den neuen Wert einzuschwingen. Ohne diese Wartezeit würde an jedem
+        # Punkt teilweise noch der "Nachklang" des vorherigen Punkts gemessen.
+        lia_settle_s = 0.0
+        if hasattr(self, 'lia') and getattr(self.lia, 'connection', None) is not None:
+            try:
+                tc_s = self.lia.read_time_constant_s()
+                lia_settle_s = 5 * tc_s
+            except Exception as e:
+                print(f"{self.RED}Warnung: Lock-In Zeitkonstante konnte nicht gelesen werden ({e}), "
+                      f"keine automatische Einschwingzeit.{self.RESET}")
+
+
         for i, v in enumerate(v_list): 
             print(f"  point {i+1}/{len(v_list)}, piezo={v} V", end=" → ")
             self.master_diode.set_piezo(value=v, unit="V", silent=True)
+            if lia_settle_s > 0:
+                time.sleep(lia_settle_s)
             states = [self.read_state(silent=silent) for _ in range(n_wlm)]
 
             wls = [s.get('wlm_wavelength', np.nan) for s in states]
@@ -316,6 +333,19 @@ class LIFManager(TerminalColours):
             print(f"wavelength = {wl_mean*1E9:.4f} nm")
 
             last = states[-1]
+
+            # Lock-In: X/Y über die n_wlm Wiederholungen mitteln (korrekter
+            # als R/theta direkt zu mitteln, wegen der Phasen-Mehrdeutigkeit),
+            # R/theta danach aus den gemittelten X/Y berechnen.
+            lia_x = [s.get('lia_X_V', np.nan) for s in states]
+            lia_y = [s.get('lia_Y_V', np.nan) for s in states]
+            lia_x_mean = float(np.nanmean(lia_x)) if len(lia_x) else np.nan
+            lia_y_mean = float(np.nanmean(lia_y)) if len(lia_y) else np.nan
+            lia_r_mean = float(np.hypot(lia_x_mean, lia_y_mean))
+            lia_theta_mean = float(np.degrees(np.arctan2(lia_y_mean, lia_x_mean)))
+            lia_overload  = any(s.get('lia_overload', False) for s in states)
+            lia_ref_unlock = any(s.get('lia_ref_unlock', False) for s in states)
+
 
             record = {
                 'time_s':                       time.perf_counter() - t0,
@@ -340,11 +370,14 @@ class LIFManager(TerminalColours):
                 'amplif_laser_mode':            last.get('amplif_laser_mode', np.nan),
                 # 'daq_lif_signal_V':             last.get('daq_lif_signal_V'),
                 # 'daq_lif_std_V':                last.get('daq_lif_std_V'),
-                # 'lia_R':                        last.get('lia_R'),
-                # 'lia_X':                        last.get('lia_X'),
-                # 'lia_Y':                        last.get('lia_Y'),
-                # 'lia_theta_deg':                last.get('lia_theta_deg'),
+                'lia_R_V':                      lia_r_mean,
+                'lia_X_V':                      lia_x_mean,
+                'lia_Y_V':                      lia_y_mean,
+                'lia_theta_deg':                lia_theta_mean,
+                'lia_overload':                 lia_overload,
+                'lia_ref_unlock':               lia_ref_unlock,
             }
+
 
             result.append(record)
 
@@ -1869,7 +1902,7 @@ if __name__ == "__main__":
             print(f"  [{i+1}/{n_measurements}] {data}")
             time.sleep(sleep)
 
-    # LIA_READ_TEST()
+    LIA_READ_TEST()
 
 
     def test_scan_piezo():

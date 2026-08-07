@@ -60,12 +60,12 @@ subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
 # KONFIGURATION – hier anpassen
 # ================================================================
 
-COMMENT   = "scope_test"       # im Dateinamen
+COMMENT   = "master_temperature_labor"       # im Dateinamen
 
 # --- Achsen ---
-X_COL     = 'time_s'                # X-Achse
-Y_COL     = None                 # Y-Achse
-GROUP_COL = None    # Farbe + Symbol (dritte Größe)
+X_COL     = 'master_temperature_C'                # X-Achse
+Y_COL     = 'wl_mean_m'                 # Y-Achse
+GROUP_COL = 'master_piezo_off_set_V'    # Farbe + Symbol (dritte Größe)
 """ 
 time_s, piezo_V, wl_mean_m, wl_std_m, wl_err_m, master_current_A, master_temperature_C, master_power, master_piezo_off_set_V, 
 amplif_current_A, amplif_temperature_C, amplif_power, daq_lif_signal_V, daq_lif_std_V, lia_R, lia_X, lia_Y, lia_theta_deg 
@@ -89,7 +89,7 @@ FILTER = {
 REFERENCE_LINES = [
     # {'value': 667.91e-9, 'label': 'Ar I  667.91 nm',  'ls': '--'},
     # {'value': 667.7282e-9, 'label': 'Ar I  667.7282 nm', 'ls': '--'},
-    # {'value': 668.42924e-9, 'label': 'Ar II 668.42924 nm',  'ls': ':'},
+    {'value': 668.42924e-9, 'label': 'Ar II 668.42924 nm',  'ls': ':'},
 ]
 
 # --- Linearer Fit pro Gruppe ---
@@ -109,7 +109,7 @@ MAX_Y_TICKS = 5
 HYSTERESIS_MODE     = False
 N_HYSTERESIS_ARROWS = 5
 
-OSCILLOSCOPE_MODE   = True
+OSCILLOSCOPE_MODE   = False
 OSC_CHANNELS        = ['ch0','ch1']
 
 # ================================================================
