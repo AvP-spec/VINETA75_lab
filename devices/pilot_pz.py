@@ -1,4 +1,4 @@
-
+# \devices\pilot_pz.py
 from base_device import BaseDevice
 import pyvisa
 import time
@@ -31,7 +31,7 @@ class PilotPZ(BaseDevice):
     
     # list of command for reseting the instument
     # the actual settings belongs to device subclass, here is a place holder
-    DEFOLT_SETTINGS = ["*IDN?"] 
+    DEFAULT_SETTINGS = ["*IDN?"] 
 
 
     def __init__(self):
@@ -345,7 +345,7 @@ class PilotPZ(BaseDevice):
 
     ####### set functions #######
     def set_defoults(self):
-        for cmd in self.DEFOLT_SETTINGS:
+        for cmd in self.DEFAULT_SETTINGS:
             self.send_command(cmd)
         return self
     
@@ -394,7 +394,7 @@ class PilotPZ(BaseDevice):
 
 
 class PilotPZ500(PilotPZ):
-    DEFOLT_SETTINGS = [
+    DEFAULT_SETTINGS = [
                        ":Laser:CURRent 0.0515",
                        ":Laser:MODe IMODE",
                        ":TEC:TEMPerature 16", 
@@ -428,7 +428,7 @@ class PilotPZ500(PilotPZ):
 
 
 class PilotPC4000(PilotPZ):
-    DEFOLT_SETTINGS = [
+    DEFAULT_SETTINGS = [
                        ":Laser:CURRent 0.3020",
                        ":Laser:MODe IMODE",
                        ":TEC:TEMPerature 17", 

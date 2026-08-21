@@ -17,6 +17,7 @@ git diff --staged devices/arduino_AvP.py
 git diff --name-status origin/main  ## see modified file names
 
 git rm git rm path/to/file
+
 #########################################################
 ################### fetch from Gitea ##################
 # Download all history and branches from remote without changing local files
@@ -111,6 +112,9 @@ git show origin/main:managers/lif.py > managers/lif_avp.py
 git difftool af74b11:managers/lif.py managers/lif_avp.py
 
 
+### take file devices/Perkin_Elmer_DS7780.py to the main from Erick-branch with new name
+git show origin/Eriks-branch:devices/Perkin_Elmer_DS7780.py > devices/Perkin_Elmer_DS7780_erick.py
+
 
 
 
@@ -123,11 +127,20 @@ git difftool af74b11:managers/lif.py managers/lif_avp.py
 
 #### look and clean history
 git log --oneline --reverse
+
+## set all changes from origin/main as one commit
+### WAY 1 ==================================
+git reset --soft origin/main
+git commit -m 'massage'
+### WAY 2 ====================================
 # to collect last 10 commits in one
 git rebase -i HEAD~10
+## alternative 
+git rebase -i origin/main
 # in redactor let first "pick" others chahge to "squash" or "s"
 # save and close
 # new reductor window: write new comment 
+## ===============================================
 
 ### look if Nextcloud folder has changes
 git fetch Lab_avp

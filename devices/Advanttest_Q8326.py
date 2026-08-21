@@ -1,3 +1,4 @@
+# \devices\Advanttest_Q8326.py
 from base_device import BaseDevice
 import pandas as pd
 import pyvisa
@@ -52,7 +53,7 @@ class Q8326(BaseDevice):
     def __init__(self):
         super().__init__()
         self.hwid = "USB0::0x03EB::0x2065::GPIB_06_4423030363035131A1C0::INSTR"
-        self.name = self.DEVICE_DIKT[self.hwid]
+        self.name = self.DEVICE_DICT[self.hwid]
         self.port = self.hwid
         self.time_sleep = 0.1 # might work with 0.01
         self.units = None

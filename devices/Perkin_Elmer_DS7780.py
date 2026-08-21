@@ -1,3 +1,4 @@
+# devices/lock_in_amplifier.py
 """
 devices/lock_in_amplifier.py
 =============================
@@ -73,10 +74,13 @@ class LockInAmplifier(BaseDevice):
     }
 
     def __init__(self):
+        # BaseDevice.__init__(self)
         super().__init__()
         self.name = "LockInAmplifier (DSP7780)"
         self.hwid = HWID
-        self.get_COM_port()  # ermittelt self.port bereits hier, wie bei den
+        ## do not make an action in costruction
+        ## for testing the class methods without instrument !!!
+        # self.get_COM_port()  # ermittelt self.port bereits hier, wie bei den
                               # anderen Devices - LIFManager._connect_device()
                               # ruft später nur noch .connect() auf
 
@@ -84,17 +88,30 @@ class LockInAmplifier(BaseDevice):
     # Verbindungsaufbau
     # -------------------------------------------------------------
 
-    def get_COM_port(self, silent=True):
-        """Sucht den Port über die HWID + aktive Identifikation per 'ID'
-        Befehl (Antwort muss '7280' sein). settle_time=0, da das Gerät
-        beim Öffnen des Ports keinen Reset durchführt (anders als z.B.
-        ein Arduino)."""
-        return self.get_COM_port_by_idn(
+    # def get_COM_port(self, silent=True):
+    #     """Sucht den Port über die HWID + aktive Identifikation per 'ID'
+    #     Befehl (Antwort muss '7280' sein). settle_time=0, da das Gerät
+    #     beim Öffnen des Ports keinen Reset durchführt (anders als z.B.
+    #     ein Arduino)."""
+    #     return self.get_COM_port_by_idn(
+    #         idn_expected="7280",
+    #         idn_command="ID",
+    #         settle_time=0,
+    #         silent=silent,
+    #     )
+
+    
+    def connect(self, silent=True):
+        print("start lock-in connect")
+        self.get_COM_port_by_idn(
             idn_expected="7280",
             idn_command="ID",
             settle_time=0,
             silent=silent,
         )
+        print(f"{self.port=}")
+        super().connect(silent=silent)
+        return self
 
     def after_connect(self, silent=True):
         """Wird von BaseDevice.connect() automatisch nach dem Öffnen der
@@ -175,7 +192,23 @@ class LockInAmplifier(BaseDevice):
 
     def set_time_constant(self, tc_code):
         """TC [n]: Zeitkonstante setzen (n gemäß Handbuch Kap. 6.4.03,
-        z.B. n=16 entspricht 200 ms)."""
+        z.B. n=16 entspricht 200 ms).
+        
+        [n]     FASTMODE=0
+                NOISEMODE=0
+        8       500 us
+        9       1 ms
+        10      2 ms
+        11      5 ms
+        12      10 ms
+        13      20 ms
+        14      50 ms
+        15      100 ms
+        16      200 ms
+        17      500 ms
+        18      1 s
+
+        """
         self._write(f"TC {tc_code}")
 
     def read_time_constant_s(self):
@@ -228,8 +261,16 @@ class LockInAmplifier(BaseDevice):
 if __name__ == "__main__":
     subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
     lia = LockInAmplifier()
-    lia.print_com_info()
-    lia.get_COM_port(silent=False).connect(silent=False)
+   # lia.print_com_info()
+   # lia.get_COM_port(silent=False).connect(silent=False)
+    lia.connect()
+
+    # lia.get_COM_port_by_idn(
+    #         idn_expected="7280",
+    #         idn_command="ID",
+    #         settle_time=0,
+    #         silent=True,
+    #     )
 
     if lia.connection is not None:
         print()

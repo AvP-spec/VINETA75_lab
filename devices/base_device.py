@@ -1,4 +1,4 @@
-
+# \devices\base_device.py
 import serial.tools.list_ports
 import pyvisa
 import os
@@ -26,7 +26,7 @@ class BaseDevice(TerminalColours):
         self.rm = None
 
         config_path = Path(__file__).parent / "devices_config.json"
-        self.DEVICE_DIKT = self._load_device_config(config_path)
+        self.DEVICE_DICT = self._load_device_config(config_path)
 
         try:
             self.rm = pyvisa.ResourceManager()
@@ -135,10 +135,10 @@ class BaseDevice(TerminalColours):
                 
             # constract hardware identificator
             hwid_ = f"VID:PID:SER = {vid}:{pid}:{serial_no}" 
-            if hwid_ in self.DEVICE_DIKT:
-                device_list.append([port.device, self.DEVICE_DIKT[hwid_], hwid_ ])
+            if hwid_ in self.DEVICE_DICT:
+                device_list.append([port.device, self.DEVICE_DICT[hwid_], hwid_ ])
             else:  
-                device_list.append([port.device, "not in DEVICE_DIKT", hwid_])
+                device_list.append([port.device, "not in DEVICE_DICT", hwid_])
         return device_list
         
 
@@ -153,17 +153,17 @@ class BaseDevice(TerminalColours):
             if res.startswith("ASRL"):
                 continue
 
-            if res in self.DEVICE_DIKT:
-                device_list.append([res, self.DEVICE_DIKT[res]])
+            if res in self.DEVICE_DICT:
+                device_list.append([res, self.DEVICE_DICT[res]])
             else:
-                device_list.append([res, "not in DEVICE_DIKT"])
+                device_list.append([res, "not in DEVICE_DICT"])
 
         return device_list
     
 
     def _print_device_list(self, dv_list):
         for el in dv_list:
-            if "not in DEVICE_DIKT" in el:
+            if "not in DEVICE_DICT" in el:
                 print(el)
             else:
                 print(f"{self.GREEN}{el}{self.RESET}")
@@ -198,10 +198,10 @@ class BaseDevice(TerminalColours):
             print(f"{self.RED}Error in get_COM_port() of BaseDevice")
             print(f"{self.RED} It is BaseDevice, no hwd defined, no connections {self.RESET}")
             return self
-        # test if the devive known and in DEVICE_DIKT
-        if self.hwid not in self.DEVICE_DIKT:
+        # test if the devive known and in DEVICE_DICT
+        if self.hwid not in self.DEVICE_DICT:
             print(f"{self.RED}Error in get_COM_port() of BaseDevice")
-            print(f"Device {self.hwid} not in DEVICE_DIKT {self.RESET}")
+            print(f"Device {self.hwid} not in DEVICE_DICT {self.RESET}")
             return self
         
         device_list = self._get_COM_connections()
@@ -335,10 +335,6 @@ class BaseDevice(TerminalColours):
             
             return self
 
-
-            
-            #finally:
-            return self
 
 
 if __name__ == "__main__":

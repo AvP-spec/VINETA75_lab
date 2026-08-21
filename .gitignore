@@ -5,6 +5,8 @@ SpyderFiles/spyder_config_backup/
 devices/test.py
 # jupyter notebook files will be trasfered without git tracking.
 *.ipynb 
+!lif_monitor_clean.ipynb
+!lockin_piezo_scan_clean.ipynb
 
 # --- nextcloud related ---
 *.sync-conflict-*

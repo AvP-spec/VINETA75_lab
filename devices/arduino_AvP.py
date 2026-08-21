@@ -17,7 +17,7 @@ class ArduinoAvP(BaseDevice):
     def __init__(self):
         super().__init__()
         self.hwid = "VID:PID:SER = 2341:0043:24238313635351910130"
-        self.name = self.DEVICE_DIKT[self.hwid]
+        self.name = self.DEVICE_DICT[self.hwid]
         # self.port = None
 
 

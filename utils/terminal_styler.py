@@ -1,4 +1,4 @@
-
+# \utils\terminal_styler.py
 
 class TerminalColours:
     RED = "\033[31m"
