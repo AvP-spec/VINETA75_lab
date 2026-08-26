@@ -1,13 +1,9 @@
-''' 
-v02->v03  working version
-re-writing PilotPZ500 and set_value() - archetectur change
-implemented *OPC? instead of time.sleep(0.1)
-'''
-
+# \devices\pilot_pz.py
 from base_device import BaseDevice
 import pyvisa
 import time
 import os
+import subprocess
 import math
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -35,7 +31,7 @@ class PilotPZ(BaseDevice):
     
     # list of command for reseting the instument
     # the actual settings belongs to device subclass, here is a place holder
-    DEFOLT_SETTINGS = ["*IDN?"] 
+    DEFAULT_SETTINGS = ["*IDN?"] 
 
 
     def __init__(self):
@@ -72,16 +68,19 @@ class PilotPZ(BaseDevice):
         Iterates through all ports matching the Pilot series HWID and validates 
         the connection by comparing the '*IDN?' response with the expected model.
         '''
-        if not silent:
-            print("=+=+= PilotPZ.connect() =+=+=")
+        
         if not self.IDN:
             print(f"{self.RED} Select subclass PilotPZ500 or PilotPC4000{self.RESET}")
             return self
+        
         device_list = self._get_COM_connections()
-        # print(device_list)
-        # print(self.hwid)
-        pilot_list = [dev for dev in device_list if self.hwid in dev[2]]    # <-- dev[2] kann jetzt VID:PID:SER = 0403:6001:None sein
-        # print(pilot_list)
+        pilot_list = [dev for dev in device_list if dev[2] == self.hwid]
+
+        if not silent:
+            print("=+=+= PilotPZ.connect() =+=+=")
+            print(f"{pilot_list=}")
+            print(f"{self.hwid=}")
+        
         for pilot in pilot_list:
             self.port = self._com_to_visa(pilot[0])
             try:
@@ -103,6 +102,7 @@ class PilotPZ(BaseDevice):
             except Exception as e:
                 print(f"Port {self.port} failed: {e}")
                 continue
+
         print(f"\n{self.RED}PilotPZ.connect() ERROR:{self.name} NOT FOUND!{self.RESET}")
         print(f"Please check if the device is POWERED ON and cables are connected.\n")
 
@@ -252,6 +252,9 @@ class PilotPZ(BaseDevice):
     
 
     def laser_monitor(self, n_measurements=5, sleep=None, plot=True, silent=False):
+        """attempt to read and plot the laser parameters in real time, 
+        returns a pandas dataframe with the results"""
+        
         if sleep is None:
             sleep= self.time_sleep
 
@@ -295,7 +298,7 @@ class PilotPZ(BaseDevice):
             ax_photo.set_title("Photo diode current [mA]")
             ax_power.set_title("Laser power [W?]")
 
-            plt.tight_layout() # Чтобы графики не наплывали друг на друга
+            plt.tight_layout()
             plt.show()
 
         t0 = None
@@ -339,10 +342,9 @@ class PilotPZ(BaseDevice):
         return df
 
 
-
     ####### set functions #######
     def set_defoults(self):
-        for cmd in self.DEFOLT_SETTINGS:
+        for cmd in self.DEFAULT_SETTINGS:
             self.send_command(cmd)
         return self
     
@@ -383,7 +385,6 @@ class PilotPZ(BaseDevice):
             time.sleep(self.time_sleep)
         
 
-
     def switch_off(self, silent=True):
         self.send_command("Laser:STATus OFF", silent=silent)
         status = self.read_status(silent=silent)
@@ -392,7 +393,7 @@ class PilotPZ(BaseDevice):
 
 
 class PilotPZ500(PilotPZ):
-    DEFOLT_SETTINGS = [
+    DEFAULT_SETTINGS = [
                        ":Laser:CURRent 0.0515",
                        ":Laser:MODe IMODE",
                        ":TEC:TEMPerature 16", 
@@ -402,8 +403,7 @@ class PilotPZ500(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID = 0403:6001"   # <-- ist in base_devise geregelt
-        
+        self.hwid = "VID:PID:SER = 0403:6001:None"
         self.IDN = "Sacher Lasertechnik, PilotPC 500, SN14092044, SW V8.00 HW V9.0 PZ V8.0"
         self.name = "PilotPC 500"
         self.current = {
@@ -427,7 +427,7 @@ class PilotPZ500(PilotPZ):
 
 
 class PilotPC4000(PilotPZ):
-    DEFOLT_SETTINGS = [
+    DEFAULT_SETTINGS = [
                        ":Laser:CURRent 0.3020",
                        ":Laser:MODe IMODE",
                        ":TEC:TEMPerature 17", 
@@ -435,8 +435,7 @@ class PilotPC4000(PilotPZ):
 
     def __init__(self):
         super().__init__()
-        self.hwid = "VID:PID = 0403:6001"   # <-- ist in base_devise geregelt
-
+        self.hwid = "VID:PID:SER = 0403:6001:None"
         self.name = "PilotPC4000"
         self.IDN = "Sacher Lasertechnik, PilotPC 4000, SN15093017, SW V8.00 HW V9.0"
         self.current = {
@@ -454,11 +453,11 @@ class PilotPC4000(PilotPZ):
 
 
 if __name__ == "__main__":
-    os.system('cls' if os.name == 'nt' else 'clear')
+    subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
     master_diode = PilotPZ500()
-    master_diode.connect(silent=True)
+    master_diode.connect(silent=False)
     amplifier_diode = PilotPC4000()
-    amplifier_diode.connect()
+    amplifier_diode.connect(silent=False)
     print()
 
 
@@ -491,10 +490,10 @@ if __name__ == "__main__":
         print("="*100)
 
 
-    read_limits(master_diode)
-    read_limits(amplifier_diode)
-    print(master_diode.read_laser())
-    print(amplifier_diode.read_laser())
+    # read_limits(master_diode)
+    # read_limits(amplifier_diode)
+    # print(master_diode.read_laser())
+    # print(amplifier_diode.read_laser())
 
     # print(master_diode.laser_monitor_df(n_measurements=5))
     # print(amplifier_diode.laser_monitor_df(n_measurements=5))
@@ -512,10 +511,7 @@ if __name__ == "__main__":
         master_diode.switch_off()
         amplifier_diode.switch_off()
 
-    test_laser_monitor()
-
-
-
+   # test_laser_monitor()
 
     def scan_laser_parameters(laser:object, silent=False):
         print(f"=== {laser.GREEN} scan_laser_parameters() {laser.RESET}===")

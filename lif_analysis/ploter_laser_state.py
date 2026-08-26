@@ -46,6 +46,7 @@ class PlotLaserStatus(TerminalColours):
         self.ax_wlm_piezo.yaxis.set_major_formatter(FormatStrFormatter('%.4f'))
         self.ax_wlm_piezo.yaxis.set_major_formatter(y_formatter)
 
+
     def _init_figure_monitoring(self):
         self.fig_mon, self.axs = plt.subplots(2, 2, num="Monitoring Status", figsize=(12, 10))
         self.fig_mon.suptitle("Lasers Parameters over Time", fontsize=14)
@@ -195,6 +196,7 @@ class PlotLaserStatus(TerminalColours):
         if missing_cols:
             print(f"{self.RED}{self.__class__.__name__} Error:{self.RESET}")
             print(f"Columns {self.MAGENTA}{missing_cols}{self.RESET} not in df.columns")
+
             return
         
         color_ = color or plt_kwargs.get('color') or self._get_color(label)
@@ -212,9 +214,6 @@ class PlotLaserStatus(TerminalColours):
         }
 
         plot_params.update(plt_kwargs)
-
-        
-        #plot_params.update({'color': color_})  
     
         line, = self.ax_wlm_piezo.plot(df["master_piezo_off_set_V"],
                                        df["wlm_wavelength"]*1e9,
@@ -328,9 +327,6 @@ class PlotLaserStatus(TerminalColours):
 
 
 
-
-
-
 if __name__ == "__main__":
     subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
 
@@ -343,17 +339,18 @@ if __name__ == "__main__":
         file_name = Path(file_path).stem
         df, header = fu.read_file(file_path)
         status_plot.plot_wlm_piezo(df, label=file_name)
-        status_plot.plot_monitoring(df,label=file_name)
+        status_plot.plot_monitoring(df, label=file_name)
         plt.pause(0.1)
     
+
 
     for i in range(2):
         test_plot()
 
-    # print("All files processed. Close the plot window to exit.")
+    print("All files processed. Close the plot window to exit.")
     plt.ioff()
     plt.show()
-    # print("test ended")
+    print("test ended")
 
     
 

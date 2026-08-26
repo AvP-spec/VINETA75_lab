@@ -2,6 +2,7 @@ from base_device import BaseDevice
 import pyvisa
 import time
 import os
+import subprocess
 
 class ArduinoAvP(BaseDevice):
     CONNECTION_SETTINGS = {
@@ -16,12 +17,12 @@ class ArduinoAvP(BaseDevice):
     def __init__(self):
         super().__init__()
         self.hwid = "VID:PID:SER = 2341:0043:24238313635351910130"
-        self.name = self.DEVICE_DIKT[self.hwid]
+        self.name = self.DEVICE_DICT[self.hwid]
         # self.port = None
 
 
 if __name__ == "__main__":
-    os.system('cls' if os.name == 'nt' else 'clear')
+    subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
     arduino = ArduinoAvP()
     arduino.print_connections()
     #print(f"{arduino.connection=}")
