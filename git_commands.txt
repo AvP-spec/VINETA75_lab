@@ -16,7 +16,11 @@ git diff main Lab_avp/main --stat
 git diff --staged devices/arduino_AvP.py
 git diff --name-status origin/main  ## see modified file names
 
-git rm git rm path/to/file
+
+######### work with files ########
+git rm path/to/file  # remove file_name
+## requares a seporate commit
+git mv path/to/file new_path/to_file # move file to 
 
 #########################################################
 ################### fetch from Gitea ##################
@@ -118,11 +122,7 @@ git show origin/Eriks-branch:devices/Perkin_Elmer_DS7780.py > devices/Perkin_Elm
 
 
 
-
-
-
-
-
+####################################################
 ################### push to Gitea ##################
 
 #### look and clean history

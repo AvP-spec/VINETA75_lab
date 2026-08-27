@@ -3,6 +3,7 @@ from base_device import BaseDevice
 import pandas as pd
 import pyvisa
 import os
+import sys
 import time
 import subprocess
 
@@ -67,25 +68,25 @@ class Q8326(BaseDevice):
             print(f"[{self.name}] clear() nicht unterstützt, übersprungen: {e}")
         time.sleep(self.time_sleep)
         slow = False
-        print("1", end="")
+        print("1", end="", flush=True)
         self.send_command("M1", silent=silent, slow=slow)      #"Sample Mode HOLD",
-        print("1", end="")
+        print("1", end="", flush=True)
         self.flush_buffer_GPIB(silent=silent)
-        print("1", end="")
+        print("1", end="", flush=True)
         self.send_command("F1", silent=silent, slow=slow)    # function LASER for measurement of a laser wavelength/frequency
-        print("1", end="")
+        print("1", end="", flush=True)
         self.send_command("W0", silent=silent, slow=slow)    # "set wavelength range: 480-1000 nm",
-        print("1", end="")
+        print("1", end="", flush=True)
         self.send_command("RF0", silent=silent, slow=slow)   # drift off
-        print("1", end="")
+        print("1", end="", flush=True)
         self.send_command("CA0", silent=silent, slow=slow)   # set altitude 0m - sea level
-        print("1", end="")
+        print("1", end="", flush=True)
         self.send_command("B1", silent=silent, slow=slow)    # set Beap when error
-        print("1", end="")
+        print("1", end="", flush=True)
         self.send_command("A1", silent=silent, slow=slow)    # average on
-        print("1", end="")
+        print("1", end="", flush=True)
         self.send_command("RE0", silent=silent, slow=slow)   # "RSOLUTION MAX", # 0.0001 nm / 10 MHz,
-        print("1", end="")
+        print("1", end="", flush=True)
         self.set_units(self.UNITS["WAVELENGTH"], silent=silent, slow=slow)
         print("1", end="")
         
@@ -95,28 +96,13 @@ class Q8326(BaseDevice):
         return self
     
 
-    def send_command(self, cmd:str, silent=False, slow=False):
+    def send_command(self, cmd:str, silent=True, slow=False):
         """
         Sends a command to the Advantest Q8326 and checks the Status Byte (STB).
-        If the device reports an error (stb != 0), it flushes the buffer and retries once.
-
-        STB Interpretation Table:
-        -  0 (0000 0000): O.K. Device is idle and ready.
-        - 64 (0100 0000): RQS (Request Service) bit active.
-        - 65 (0100 0001): Data Ready. Measurement finished, data waiting in buffer.
-        - 66 (0100 0010): Syntax Error. Command not recognized.
-        - 67 (0100 0011): Syntax Error + Data. Error occurred, buffer not empty.
+        If the device reports an error (if stb), it flushes the buffer and retries once.
         """
         
         cmd_name = self.CMD_DIKT.get(cmd, "cmd is not in self.CMD_DIKT")
-
-        def get_status_msg(stb):
-            ''' interpreate status byte and get massage'''
-            if stb == 0: return f"{self.GREEN}O.K.{self.RESET}"
-            if stb in [66, 67]: return f"{self.RED}Syntax Error{self.RESET}"
-            if stb == 65: return f"{self.BLUE}Data in buffer{self.RESET}"
-            if stb == 64: return f"{self.YELLOW}RQS bit only{self.RESET}"
-            return f"{self.RED}Unknown State {stb}{self.RESET}"
 
         self.connection.write(cmd)
 
@@ -124,15 +110,16 @@ class Q8326(BaseDevice):
             time.sleep(self.time_sleep)
             print(f"Q8326.send_command(): wlm.time_sleep = {self.time_sleep}")
 
-        status_byte = self.connection.stb
-        status = get_status_msg(status_byte)
+        # status_byte = self.connection.stb
+        status_byte = self._get_status_byte()
+        status = self._get_status_msg(status_byte)
         if not silent:
             print(f"[{self.name}] send_command({self.BLUE}{cmd}: {cmd_name}"
                   f"{self.RESET}) = {status}, {status_byte=}")
         
         self.flush_buffer_GPIB(silent=silent)
 
-        if status_byte != 0:
+        if status_byte: # != 0:
             print(f"--- {self.YELLOW}second attempt to send command{self.RESET} ---")
             status_byte = self.connection.stb
             print(f"initial {status_byte=} \n")
@@ -156,6 +143,41 @@ class Q8326(BaseDevice):
             self.flush_buffer_GPIB(silent=False)
             
         return self
+
+    def _get_status_msg(self, stb):
+        ''' interpreate status byte and get massage
+                STB Interpretation Table:
+        -  0 (0000 0000): O.K. Device is idle and ready.
+        - 64 (0100 0000): RQS (Request Service) bit active.
+        - 65 (0100 0001): Data Ready. Measurement finished, data waiting in buffer.
+        - 66 (0100 0010): Syntax Error. Command not recognized.
+        - 67 (0100 0011): Syntax Error + Data. Error occurred, buffer not empty.
+        - None: was not possible to read STB
+        '''
+        if stb == 0: return f"{self.GREEN}O.K.{self.RESET}"
+        if stb in [66, 67]: return f"{self.RED}Syntax Error{self.RESET}"
+        if stb == 65: return f"{self.BLUE}Data in buffer{self.RESET}"
+        if stb == 64: return f"{self.YELLOW}RQS bit only{self.RESET}"
+        if stb == None: return f"{self.YELLOW}stb not avalible{self.RESET}"
+        return f"{self.RED}Unknown State {stb}{self.RESET}"
+
+    def _get_status_byte(self) -> int:
+        """linux drivers might does not work propaly
+           the command self.connection.stb often failed
+        """
+        try:
+            status_byte = self.connection.stb
+            # print(f"get_{status_byte=}, {type(status_byte)=}")
+            return status_byte
+        except Exception as e:
+            if sys.platform == 'linux':
+                print(f"{self.GREEN}[{self.name}]: linux detected {self.RESET}")
+                print(f"NI-VISA probably not installed")
+                return None
+             
+            print(f"{self.RED}[{self.name}]: get_status_byte error: {self.RESET}")
+            print(f"{e}")
+            return None
 
 
     def flush_buffer_GPIB(self, silent=False):
@@ -201,6 +223,7 @@ class Q8326(BaseDevice):
         self.average = "OFF"
         return self
 
+
     def set_units(self, unit:str="nm", silent=False, slow=False):
         if unit == "nm":
             self.send_command("K0", silent=silent, slow=slow)
@@ -212,6 +235,7 @@ class Q8326(BaseDevice):
             print(f"[{self.name}] {self.RED}Error: {self.RESET} "
                   f"Unit '{unit}' is not supported. Use 'nm' or 'THz'.")
         return self
+
 
     def read(self, device_read_time=False, slow=False, silent=True,) -> dict:
         """Read wavelength with optional timing metadata."""
@@ -266,7 +290,13 @@ class Q8326(BaseDevice):
             ## dublicate of the command if code 6 is not correct 
             ## self.connection.control_ren(pyvisa.constants.VI_GPIB_REN_ADDRESS_GTL)
         except Exception as e:
-            print(f"[{self.name}] {self.RED}Go To Local error:{self.RESET} {e}")
+            if sys.platform == 'linux':
+                print(f"{self.GREEN}[{self.name}]: linux detected {self.RESET}")
+                print(f"{self.YELLOW}[NOTE] Programmatic GTL is not supported by this USBTMC adapter on Linux ({e}).{self.RESET}")
+                print(f"Please press the physical {self.GREEN}'ADDRESS/LOCAL'{self.RESET} button on the front panel of the Q8326.")
+            else:
+                print(f"[{self.name}] {self.RED}Go To Local error:{self.RESET} {e}")
+                print(f"Please press the physical {self.GREEN}'ADDRESS/LOCAL'{self.RESET} button on the front panel of the Q8326.")
         return BaseDevice.disconnect(self)
 
 if __name__ == "__main__":
@@ -274,52 +304,78 @@ if __name__ == "__main__":
     print("---- starting Advanttest_Q8326.py ------")
 
     wlm = Q8326()
- #   wlm.print_connections()
-    wlm.connect()
+    # wlm.print_connections()
 
-    # test pyvisa query and status byte avalibility (prblems with Lynux?)
-    print()
-    print(f"direct pyvisa query wavelength: {wlm.connection.query("E")}")
-    try: 
-        print(f"[{wlm.name}] {wlm.GREEN}stb: {wlm.connection.stb}{wlm.RESET}")
-    except pyvisa.errors.VisaIOError:
-        print(f"[{wlm.name}] {wlm.RED}stb nicht verfügbar{wlm.RESET}")
+    def test_wlm_read(silent=True):
+        """testing single wlm.read()"""
+        time1 = time.perf_counter()
+        readout = wlm.read(device_read_time=False, slow=False, silent=silent,)
+        time2 = time.perf_counter()
+        print(f"self.read() time:  {time2 - time1}")
+        print(f"self.read() readout: {readout}")
+        print("-"*50)
 
-    # test self.read() method
-    time1 = time.perf_counter()
-    readout = wlm.read(device_read_time=False, slow=False, silent=True,)
-    time2 = time.perf_counter()
-    print(f"self.read() time:  {time2 - time1}")
-    print(f"self.read() readout: {readout}")
+    def test_wlm_monitor(n=5, silent=True):
+        """test stability of mesuremtns with and without avaraging
+           n is number of measurements
+        """
+        print("\n----- averaged measurements -----")
+        wlm.average_on(silent=silent)
+        print(f"{wlm.average=}")
+        print(wlm.wlm_monitor(5, silent=silent))
 
-    # test stability of the averaged measurements
-    print("\n----- averaged measurements -----")
-    wlm.average_on()
-    print(f"{wlm.average=}")
-    print(wlm.wlm_monitor(5))
+        print("\n----- fast measurements -----")
+        wlm.average_off(silent=silent)
+        print(f"{wlm.average=}")
+        print(wlm.wlm_monitor(5, silent=silent))
+        print("-"*50)
 
-    # test stability of the single measurements
-    print("\n----- fast measurements -----")
-    wlm.average_off()
-    print(f"{wlm.average=}")
-    print(wlm.wlm_monitor(5))
+    def test_set_units(silent=True):
+        print("\n----- testing unit setting -----")
+        wlm.average_on(silent=silent)
+        wlm.set_units(wlm.UNITS["WAVELENGTH"])
+        readout_nm = wlm.read()
+        # nm = readout_nm[wlm.UNITS["WAVELENGTH"]]
+        print(f"{wlm.units=}")
+        print(readout_nm)
+        nm = readout_nm[wlm.units]
+        print(f"{nm} {list(readout_nm)[-1]}")
 
-    # test unit setting
-    print("\n----- testing unit setting -----")
-    wlm.average_on()
-    wlm.set_units(wlm.UNITS["WAVELENGTH"])
-    print(wlm.read())
-    wlm.set_units(wlm.UNITS["FREQUENCY"])
-    result = wlm.read()
-    print(result)
-    f = result[wlm.units]
-    if f != 0:
-        x = 299792.458/f
-        print(f"frequency in vacuum nm: {x} nm")
+        wlm.set_units(wlm.UNITS["FREQUENCY"])
+        readout_THz = wlm.read()
+        # f = readout_THz[wlm.UNITS["FREQUENCY"]]
+        print(f"{wlm.units=}")
+        f = readout_THz[wlm.units]
+        print(f"{f} {list(readout_THz)[-1]}")
+        
+        if f != 0:
+            x = 299792.458/f
+            print(f"frequency corresponds to: {x} nm in vacuum")
+        print("-"*50)
 
-    wlm.wlm_monitor(n_measurements=5, silent=False)
+    def test_stb():
+        print("\n----- test status byte reading -----")
+        try: 
+            print(f"[{wlm.name}] {wlm.GREEN}stb: {wlm.connection.stb}{wlm.RESET}")
+        except pyvisa.errors.VisaIOError:
+            print(f"[{wlm.name}] {wlm.RED}stb nicht verfügbar{wlm.RESET}")
+        print("-"*50)
 
 
-    wlm.disconnect()
-   
+    try:
+        wlm.connect(silent=True)
+
+        test_wlm_read(silent=True)
+        test_wlm_monitor(silent=True)
+        test_set_units()
+        test_stb()
+
+        print(f"{wlm.GREEN} TEST PASSED {wlm.RESET}")
+
+    except Exception as e:
+        print(f"{wlm.RED} TEST FAILED {wlm.RESET}")
+        print(e)
+
+    finally:
+        wlm.disconnect()
 

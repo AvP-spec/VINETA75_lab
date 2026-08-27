@@ -294,15 +294,13 @@ class BaseDevice(TerminalColours):
         
         try: 
             if not silent:
-                print(f"{self.GREEN} \n pyvisa connecting to {self.name} on {self.port}{self.RESET}")
+                print(f" \n pyvisa connecting to {self.BLUE}{self.name}{self.RESET} on {self.port}")
             self.__inst = self.rm.open_resource(self.port, **self.CONNECTION_SETTINGS)
             if not silent:
-                print(f"{self.GREEN} pyvisa opened connection to {self.name} on {self.port}{self.RESET}")
+                print(f"pyvisa opened connection to {self.GREEN}{self.name}{self.RESET} on {self.port}")
 
             self.after_connect(silent=silent)
-            if not silent:
-                print(f"{self.GREEN} after_connect() successful on {self.port}{self.RESET}")
-       
+            
         except Exception as e:
             print(f_id)
             print(f"{self.RED}Connection failed: {e}{self.RESET}")
