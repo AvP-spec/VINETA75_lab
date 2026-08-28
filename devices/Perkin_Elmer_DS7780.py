@@ -1,3 +1,4 @@
+# devices/lock_in_amplifier.py
 """
 devices/lock_in_amplifier.py
 =============================
@@ -16,11 +17,29 @@ RS232 Settings), bevor das hier funktioniert:
   DATA BITS   : 8 + no parity
   ECHO        : OFF    (sonst muss jede Antwort doppelt gelesen werden)
   PROMPT      : OFF    (sonst hängt "*"/"?" an jeder Antwort)
+
+-------------------------------------------------------------------------
+Einmaliges Setup im Code:
+-------------------------------------------------------------------------
+self.hwid muss auf die VID:PID des USB-RS232-Konverters gesetzt werden.
+Am einfachsten herausfinden mit:
+
+    from devices.lock_in_amplifier import LockInAmplifier
+    lia = LockInAmplifier()
+    lia.print_com_info()      # zeigt alle COM-Ports inkl. VID/PID
+
+Den passenden Eintrag (z.B. "VID:PID = 0403:6001" für einen FTDI-Chip,
+oder "0557:2008" für Prolific etc.) unten bei HWID eintragen. Ein Eintrag
+in devices_config.json ist NICHT zwingend nötig (get_COM_port_by_idn()
+identifiziert das Gerät zusätzlich aktiv über den 'ID'-Befehl -> Antwort
+'7280'), macht die Ausgabe von print_connections() aber lesbarer.
 """
 
 import time
 import pyvisa
 import sys
+import os
+import subprocess
 from pathlib import Path
 
 current_file = Path(__file__).resolve()
@@ -33,7 +52,7 @@ from devices.base_device import BaseDevice
 
 # HWID des USB<->RS232-Konverters. Über lia.print_com_info() ermitteln und
 # hier eintragen (Format wie von BaseDevice erzeugt: "VID:PID = XXXX:YYYY").
-HWID = "VID:PID:SER = 1659:8963:None"  # für den verwendeten Converter
+HWID = "VID:PID:SER = 067B:2303:None"  # für den verwendeten Converter
 
 
 class LockInError(Exception):
@@ -55,10 +74,13 @@ class LockInAmplifier(BaseDevice):
     }
 
     def __init__(self):
+        # BaseDevice.__init__(self)
         super().__init__()
         self.name = "LockInAmplifier (DSP7780)"
         self.hwid = HWID
-        self.get_COM_port()  # ermittelt self.port bereits hier, wie bei den
+        ## do not make an action in costruction
+        ## for testing the class methods without instrument !!!
+        # self.get_COM_port()  # ermittelt self.port bereits hier, wie bei den
                               # anderen Devices - LIFManager._connect_device()
                               # ruft später nur noch .connect() auf
 
@@ -66,17 +88,30 @@ class LockInAmplifier(BaseDevice):
     # Verbindungsaufbau
     # -------------------------------------------------------------
 
-    def get_COM_port(self, silent=True):
-        """Sucht den Port über die HWID + aktive Identifikation per 'ID'
-        Befehl (Antwort muss '7280' sein). settle_time=0, da das Gerät
-        beim Öffnen des Ports keinen Reset durchführt (anders als z.B.
-        ein Arduino)."""
-        return self.get_COM_port_by_idn(
+    # def get_COM_port(self, silent=True):
+    #     """Sucht den Port über die HWID + aktive Identifikation per 'ID'
+    #     Befehl (Antwort muss '7280' sein). settle_time=0, da das Gerät
+    #     beim Öffnen des Ports keinen Reset durchführt (anders als z.B.
+    #     ein Arduino)."""
+    #     return self.get_COM_port_by_idn(
+    #         idn_expected="7280",
+    #         idn_command="ID",
+    #         settle_time=0,
+    #         silent=silent,
+    #     )
+
+    
+    def connect(self, silent=True):
+        print("start lock-in connect")
+        self.get_COM_port_by_idn(
             idn_expected="7280",
             idn_command="ID",
             settle_time=0,
             silent=silent,
         )
+        print(f"{self.port=}")
+        super().connect(silent=silent)
+        return self
 
     def after_connect(self, silent=True):
         """Wird von BaseDevice.connect() automatisch nach dem Öffnen der
@@ -94,6 +129,9 @@ class LockInAmplifier(BaseDevice):
 
         if not silent:
             print(f"{self.GREEN}[{self.name}] Geräte-ID bestätigt: {idn}{self.RESET}")
+            
+        print(f"\n{self.BLUE}{self.name}{self.GREEN} connected" 
+                f" on port {self.BLUE}{self.port}{self.RESET} \n")
 
         return True
 
@@ -154,25 +192,28 @@ class LockInAmplifier(BaseDevice):
 
     def set_time_constant(self, tc_code):
         """TC [n]: Zeitkonstante setzen (n gemäß Handbuch Kap. 6.4.03,
-        z.B. n=16 entspricht 200 ms)."""
+        z.B. n=16 entspricht 200 ms).
+        
+        [n]     FASTMODE=0
+                NOISEMODE=0
+        8       500 us
+        9       1 ms
+        10      2 ms
+        11      5 ms
+        12      10 ms
+        13      20 ms
+        14      50 ms
+        15      100 ms
+        16      200 ms
+        17      500 ms
+        18      1 s
+
+        """
         self._write(f"TC {tc_code}")
 
     def read_time_constant_s(self):
         """TC.: liest die aktuell eingestellte Zeitkonstante in Sekunden."""
         return float(self._query("TC."))
-    
-    def read_status_byte(self):
-        """ST: liest das Status-Byte (Kap. 6.3.13 im Handbuch) und gibt die
-        relevanten Fehlerbits als dict zurück. Wichtig für Datenqualität:
-        bit 3 = Referenz "unlocked", bit 4 = Overload (Signal übersteuert -
-        Messwert an diesem Punkt ist dann nicht vertrauenswürdig)."""
-        status = int(self._query("ST"))
-        return {
-            "invalid_command":  bool(status & (1 << 1)),
-            "parameter_error":  bool(status & (1 << 2)),
-            "reference_unlock": bool(status & (1 << 3)),
-            "overload":         bool(status & (1 << 4)),
-        }
 
     def read_xy(self):
         """XY.: liefert (X, Y) in Volt als Float-Tupel."""
@@ -186,52 +227,52 @@ class LockInAmplifier(BaseDevice):
         m_str, p_str = self._split_two_values(response)
         return float(m_str), float(p_str)
 
-    def read_signal(self, silent=True, device_read_time=False, check_status=True):
+    def read_signal(self, silent=True, device_read_time=False, mode="xy"):
         """
         Einheitliche Ausleseschnittstelle, kompatibel mit
         LIFManager.read_state() (wird dort automatisch mit 'lia_' geprefixt).
- 
-        Liefert X, Y, Magnitude und Phase in einem Aufruf (zwei Geräte-
-        Anfragen, XY. und MP.), sowie optional Overload-/Unlock-Flags -
-        wichtig, um übersteuerte oder unverlässliche Messpunkte im
-        Nachhinein leicht herausfiltern zu können (z.B. df[~df['lia_overload']]).
+
+        mode: 'xy' liefert X_V/Y_V, 'magphase' liefert Magnitude_V/Phase_deg.
         """
         t_start = time.perf_counter()
- 
+
         try:
-            x_v, y_v = self.read_xy()
-            mag_v, phase_deg = self.read_mag_phase()
-            data = {
-                "X_V": x_v,
-                "Y_V": y_v,
-                "R_V": mag_v,
-                "theta_deg": phase_deg,
-            }
-            if check_status:
-                status = self.read_status_byte()
-                data["overload"] = status["overload"]
-                data["ref_unlock"] = status["reference_unlock"]
+            if mode == "magphase":
+                val1, val2 = self.read_mag_phase()
+                data = {"Magnitude_V": val1, "Phase_deg": val2}
+            else:
+                val1, val2 = self.read_xy()
+                data = {"X_V": val1, "Y_V": val2}
         except Exception as e:
             if not silent:
                 print(f"{self.RED}[{self.name}] read_signal Fehler: {e}{self.RESET}")
             return {"error": str(e)}
- 
+
         if device_read_time:
             data["read_start_s"] = t_start
             data["read_duration_s"] = time.perf_counter() - t_start
- 
+
         if not silent:
             print(f"[{self.name}] {data}")
- 
+
         return data
 
 
-
 if __name__ == "__main__":
+    subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
     lia = LockInAmplifier()
-    lia.print_com_info()
-    lia.get_COM_port(silent=False).connect(silent=False)
+   # lia.print_com_info()
+   # lia.get_COM_port(silent=False).connect(silent=False)
+    lia.connect()
+
+    # lia.get_COM_port_by_idn(
+    #         idn_expected="7280",
+    #         idn_command="ID",
+    #         settle_time=0,
+    #         silent=True,
+    #     )
 
     if lia.connection is not None:
-        print(lia.read_signal(silent=False, device_read_time=True))
+        print()
+        print(lia.read_signal(silent=True, device_read_time=True))
         lia.disconnect()

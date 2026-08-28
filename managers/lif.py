@@ -683,13 +683,13 @@ class LIFManager(TerminalColours):
             # 1. Überschwingen erkennen: 
             if not has_overshoot: 
                 if is_heating and current_temp > target_temp: 
-                    time.sleep(2.0)
                     has_overshoot = True
                     print("\n  Overshoot detected, waiting for return to target...", end="")
+                    time.sleep(5.0)
                 elif not is_heating and current_temp < target_temp: 
-                    time.sleep(2.0)
                     has_overshoot = True
                     print("\n  Overshoot detected, waiting for return to target...", end="")
+                    time.sleep(5.0)
             
             # 2. Toleranzprüfung nur nach einmal überschwingen
             if has_overshoot and abs(current_temp - target_temp) <= tolerance: 

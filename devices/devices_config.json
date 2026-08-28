@@ -7,6 +7,6 @@
         "VID:PID:SER = 0403:6001:None": "FTDI: Future Technology Devices International Ltd, Pilot series?",
         "VID:PID:SER = 2341:0043:24238313635351910130": "Arduino-AvP",
         "VID:PID:SER = 2341:0043:859373138373518122F1": "Arduino-Erik", 
-        "VID:PID:SER = 1A86:7523:None": "PerkinElmer_DS7780"
+        "VID:PID:SER = 067B:2303:None": "PerkinElmer_DS7780"
     }
 }

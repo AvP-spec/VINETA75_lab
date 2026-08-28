@@ -80,7 +80,7 @@ has_piezo     = active_laser['has_piezo']
 TEMP_MIN_C       = 15.0     # °C min=-5
 TEMP_MAX_C       = 25.0     # °C max=30
 TEMP_STEP_C      = 5.0      # °C
-N_WLM            = 5        # Wellenlängenmessungen pro Piezo-Punkt
+N_WLM            = 3        # Wellenlängenmessungen pro Piezo-Punkt
 V_STEP           = 13.5     # Piezo-Schrittweite [V]
 ZIGZAG           = False
 HYSTERESIS       = False
