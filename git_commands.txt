@@ -24,46 +24,75 @@ git mv path/to/file new_path/to_file # move file to
 
 #########################################################
 ################### fetch from Gitea ##################
-# Download all history and branches from remote without changing local files
-git fetch origin 
+#########################################################
 
-git checkout -b review/remote-updates origin/main
+#### -1: Download files
+----------------------------------
+git fetch origin
 
-# List all files that are different A-new, M-modified, D-deleted:
-git diff --name-status main..HEAD
+--------------------------------------
+#### -2: Create two review branches
+----------------------------------------
+git branch review-local main
+git branch review-remote origin/main
+## see all branches
+git branch -a
 
-# List only new files (A) 
-git diff --name-only --diff-filter=A main origin/main
-# Copy all new files from origin/main to the active branch.
-git checkout origin/main -- $(git diff --name-only --diff-filter=A main origin/main)
-git add . 
-git commit -m "new files added from the remote"
-git status
+----------------------------------------
+#### -3: See TO DO list
+-----------------------------------------
+## List all files that are different: A-new, M-modified, D-deleted:
+git diff --name-status review-local review-remote
 
-git checkout main -- path/to/file.ext
-git difftool origin/main -- path/to/file.ext
-git add . 
-git commit -m "file name"
-# see modified files
-git log --oneline main..HEAD
+----------------------------------------
+#### -4: Review changes in one file
+--------------------------------------
+## base on save version of main-lockal
+git switch review-local
+
+## in diftool: left-remote, right-lockal
+git difftool review-remote -- path/file_name.py
+
+git add path/file_name.py
+## make commit when all files ready?
+git commit -m "reviesed updates"
+
+## copy file into review-remote
+git switch review-remote
+git restore --source=review-local -- path/file_name.py
+
+git commit -m "reviesed path/file_name.py"
+git switch review-local
+
+---------------------------------------------
+#### -5: Unite the history
+---------------------------------------------
+## check that TO DO list is empty
+git diff --name-status review-local review-remote
+## or squash commits before merging!!! 
+git switch review-local
+
+git merge review-remote -m "Merge review branches histories"
+
+
+-----------------------------------------------
+### -6: update main
+-------------------------------------------------
+git switch main
+git merge review-local
+git push origin main
+---------------------------------------------
+
+
+
+
+
+###### see history #####
+git reflog
+git log --oneline
+git log --oneline --graph --all
 git log --oneline --graph main..HEAD
 
-# switch to main
-git checkout main
-# merge chenges
-git merge review/remote-updates
-# in case of resolved fconflicts 
-git commit -m ""
-# delete the branch
-git branch -d review/remote-updates
-## force to delit ####
-git branch -D review/remote-updates 
-
-
-git reset --soft origin/main
-
-git difftool origin/main -- local_path/file
-#########################################################
 
 
 
