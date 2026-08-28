@@ -29,7 +29,13 @@ class BaseDevice(TerminalColours):
         self.DEVICE_DICT = self._load_device_config(config_path)
 
         try:
-            self.rm = pyvisa.ResourceManager()
+            if sys.platform.startswith('linux'):
+                ## on lynux the drivers NI-VISA are dangeros 
+                ## force to use pyvisa-py
+                self.rm = pyvisa.ResourceManager('@py')
+            else:
+                ## Use defoult VISA backend
+                self.rm = pyvisa.ResourceManager()
         except Exception:
             print(self.RED)
             print("BaseDevice init Error, pyvisa.ResourceManager() not created")
@@ -192,13 +198,12 @@ class BaseDevice(TerminalColours):
 
 
     def get_COM_port(self):
-
-        # test if hwid given
+        # test if hwid is provided
         if self.hwid is None:
             print(f"{self.RED}Error in get_COM_port() of BaseDevice")
             print(f"{self.RED} It is BaseDevice, no hwd defined, no connections {self.RESET}")
             return self
-        # test if the devive known and in DEVICE_DICT
+        # test if the device is known and in DEVICE_DICT
         if self.hwid not in self.DEVICE_DICT:
             print(f"{self.RED}Error in get_COM_port() of BaseDevice")
             print(f"Device {self.hwid} not in DEVICE_DICT {self.RESET}")
