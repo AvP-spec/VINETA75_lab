@@ -29,13 +29,7 @@ class BaseDevice(TerminalColours):
         self.DEVICE_DICT = self._load_device_config(config_path)
 
         try:
-            if sys.platform.startswith('linux'):
-                ## on lynux the drivers NI-VISA are dangeros 
-                ## force to use pyvisa-py
-                self.rm = pyvisa.ResourceManager('@py')
-            else:
-                ## Use defoult VISA backend
-                self.rm = pyvisa.ResourceManager()
+            self.rm = pyvisa.ResourceManager()
         except Exception:
             print(self.RED)
             print("BaseDevice init Error, pyvisa.ResourceManager() not created")
