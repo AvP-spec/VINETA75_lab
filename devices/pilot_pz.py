@@ -109,7 +109,7 @@ class PilotPZ(BaseDevice):
     ##### general functions #######
     def flush_buffer(self, silent=False):
         '''
-        critical for stable and synchronysed connectoin of the instrument with pyvisa 
+        critical for stable and synchronysed connection of the instrument with pyvisa 
         silent=False will print the buffer content
         '''
         n = self.connection.bytes_in_buffer
@@ -135,12 +135,11 @@ class PilotPZ(BaseDevice):
         return self 
 
 
-    def read_value(self, cmd:str, silent=True):
-        ''' similar to send command, but returns instrument response '''
-        response = self.connection.query(cmd) 
-        time.sleep(self.time_sleep)
-        # print(f"{cmd}: {response}" )
-        self.flush_buffer(silent=silent)
+    def read_value(self, cmd, silent=True):
+        if self.connection is None:
+            print(f"{self.RED}[{self.name}] {self.RESET} Error in read_value(): Device not connected")
+            return None  # oder raise ConnectionError(...)
+        response = self.connection.query(cmd)
         return response
 
 
@@ -462,6 +461,9 @@ if __name__ == "__main__":
     print()
     
     def read_limits(laser:object):
+        if laser.connection is None:
+            print(f"{laser.RED}[{laser.name}]{laser.RESET} read_limits() aborted: Device not connected")
+            return
         print(f"\n=== {laser.GREEN} scan_laser_parameters() {laser.RESET}===")
         I_max = laser.read_value(":Laser:ILIMit? MAX")
         I_min = laser.read_value(":Laser:ILIMit? MIN")
