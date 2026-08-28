@@ -29,7 +29,13 @@ class BaseDevice(TerminalColours):
         self.DEVICE_DICT = self._load_device_config(config_path)
 
         try:
-            self.rm = pyvisa.ResourceManager('@py')
+            if sys.platform.startswith('linux'):
+                ## on lynux the drivers NI-VISA are dangeros 
+                ## force to use pyvisa-py
+                self.rm = pyvisa.ResourceManager('@py')
+            else:
+                ## Use defoult VISA backend
+                self.rm = pyvisa.ResourceManager()
         except Exception:
             print(self.RED)
             print("BaseDevice init Error, pyvisa.ResourceManager() not created")
@@ -192,12 +198,12 @@ class BaseDevice(TerminalColours):
 
 
     def get_COM_port(self):
-        # test if hwid given
+        # test if hwid is provided
         if self.hwid is None:
             print(f"{self.RED}Error in get_COM_port() of BaseDevice")
             print(f"{self.RED} It is BaseDevice, no hwd defined, no connections {self.RESET}")
             return self
-        # test if the devive known and in DEVICE_DICT
+        # test if the device is known and in DEVICE_DICT
         if self.hwid not in self.DEVICE_DICT:
             print(f"{self.RED}Error in get_COM_port() of BaseDevice")
             print(f"Device {self.hwid} not in DEVICE_DICT {self.RESET}")
@@ -293,15 +299,13 @@ class BaseDevice(TerminalColours):
         
         try: 
             if not silent:
-                print(f"{self.GREEN} \n pyvisa connecting to {self.name} on {self.port}{self.RESET}")
+                print(f" \n pyvisa connecting to {self.BLUE}{self.name}{self.RESET} on {self.port}")
             self.__inst = self.rm.open_resource(self.port, **self.CONNECTION_SETTINGS)
             if not silent:
-                print(f"{self.GREEN} pyvisa opened connection to {self.name} on {self.port}{self.RESET}")
+                print(f"pyvisa opened connection to {self.GREEN}{self.name}{self.RESET} on {self.port}")
 
             self.after_connect(silent=silent)
-            if not silent:
-                print(f"{self.GREEN} after_connect() successful on {self.port}{self.RESET}")
-       
+            
         except Exception as e:
             print(f_id)
             print(f"{self.RED}Connection failed: {e}{self.RESET}")
