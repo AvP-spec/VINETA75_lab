@@ -137,7 +137,7 @@ class PilotPZ(BaseDevice):
 
     def read_value(self, cmd, silent=True):
         if self.connection is None:
-            print(f"Error in read_value(): Device not connected")
+            print(f"{self.RED}[{self.name}] {self.RESET} Error in read_value(): Device not connected")
             return None  # oder raise ConnectionError(...)
         response = self.connection.query(cmd)
         return response
@@ -459,11 +459,10 @@ if __name__ == "__main__":
     amplifier_diode = PilotPC4000()
     amplifier_diode.connect(silent=False)
     print()
-
-
+    
     def read_limits(laser:object):
         if laser.connection is None:
-            print("read_limits() aborted: Device not connected")
+            print(f"{laser.RED}[{laser.name}]{laser.RESET} read_limits() aborted: Device not connected")
             return
         print(f"\n=== {laser.GREEN} scan_laser_parameters() {laser.RESET}===")
         I_max = laser.read_value(":Laser:ILIMit? MAX")
