@@ -680,16 +680,16 @@ class LIFManager(TerminalColours):
             current_data = laser.read_laser(device_read_time=False)
             current_temp = current_data['temperature_C']
 
-            # 1. Überschwingen erkennen: 
+            # 1. Überschwingen erkennen:                funktioniert noch nicht wirklich
             if not has_overshoot: 
                 if is_heating and current_temp > target_temp: 
                     has_overshoot = True
                     print("\n  Overshoot detected, waiting for return to target...", end="")
-                    time.sleep(5.0)
+                    time.sleep(2.0)
                 elif not is_heating and current_temp < target_temp: 
                     has_overshoot = True
                     print("\n  Overshoot detected, waiting for return to target...", end="")
-                    time.sleep(5.0)
+                    time.sleep(2.0)
             
             # 2. Toleranzprüfung nur nach einmal überschwingen
             if has_overshoot and abs(current_temp - target_temp) <= tolerance: 

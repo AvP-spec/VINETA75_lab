@@ -618,7 +618,7 @@ class LifeLIFPlotter(PlotStyler, TerminalColours):
     TEMP_KEY = "temp_C"
 
     REFERENCE_LINES = {
-        "Ar I": 667.9,
+        "Ar I": 667.91247,
         "Ar II": 668.61379
     }
 

@@ -60,7 +60,7 @@ subprocess.run('cls' if os.name == 'nt' else 'clear', shell=True)
 # KONFIGURATION – hier anpassen
 # ================================================================
 
-COMMENT   = "master_temperature_labor"       # im Dateinamen
+COMMENT   = "high_temp"       # im Dateinamen
 
 # --- Achsen ---
 X_COL     = 'master_temperature_C'                # X-Achse
@@ -80,7 +80,7 @@ Y_ERR_COL = 'wl_std_m'
 
 # --- Filter: None = kein Filter, sonst [min, max] ---
 FILTER = {
-    X_COL:     None,          # z.B. [-10, 10]  für Piezo -10 bis +10 V
+    X_COL:     [20,30],          # z.B. [-10, 10]  für Piezo -10 bis +10 V
     Y_COL:     None,          # z.B. [668.5e-9, 668.7e-9]
     GROUP_COL: None,          # z.B. [40, 60]   für Strom 40-60 mA
 }
@@ -89,7 +89,7 @@ FILTER = {
 REFERENCE_LINES = [
     # {'value': 667.91e-9, 'label': 'Ar I  667.91 nm',  'ls': '--'},
     # {'value': 667.7282e-9, 'label': 'Ar I  667.7282 nm', 'ls': '--'},
-    {'value': 668.42924e-9, 'label': 'Ar II 668.42924 nm',  'ls': ':'},
+    # {'value': 668.42924e-9, 'label': 'Ar II 668.42924 nm',  'ls': ':'},
 ]
 
 # --- Linearer Fit pro Gruppe ---

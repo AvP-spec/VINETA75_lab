@@ -244,7 +244,15 @@ class Q8326(BaseDevice):
         return self
 
     def read(self, device_read_time=False, slow=False, silent=True,) -> dict:
-        """Read wavelength with optional timing metadata."""
+        """
+        Read wavelength with optional timing metadata.
+
+        Returns the unit-tagged key ('nm' or 'THz', used by lif_avp.py's
+        live plotter) AND, for backward compatibility with managers/lif.py
+        (which expects the historic interface), a 'wavelength' key holding
+        the raw value in meters -- only added while in wavelength/'nm' mode,
+        since that's the only mode where 'wavelength' is a meaningful name.
+        """
         if slow:
             self.flush_buffer_GPIB(silent=silent) # takes 0.6 sec
 
@@ -253,11 +261,20 @@ class Q8326(BaseDevice):
         value = self.connection.query("E")
         dt = time.perf_counter() - t0
 
+        ## the instrument returns its native SI value here:
+        ## meters when in wavelength/'nm' mode, Hz when in frequency/'THz' mode
+        raw_si = float(value)
+
         readout = {}
         if device_read_time:
             readout.update({'wlm_time_s': t0, 
                             'wlm_duration_s': dt}) 
-        readout[str(self.units)] = float(value)*factor[self.units]
+        readout[str(self.units)] = raw_si*factor[self.units]
+
+        ## backward-compat key expected by managers/lif.py
+        if self.units == "nm":
+            readout['wavelength'] = raw_si
+
         return readout
 
     
