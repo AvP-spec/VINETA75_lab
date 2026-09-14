@@ -215,6 +215,32 @@ class LockInAmplifier(BaseDevice):
         """TC.: liest die aktuell eingestellte Zeitkonstante in Sekunden."""
         return float(self._query("TC."))
 
+    def set_reference_phase(self, phase_deg):
+        """REFP.: Referenzphase in Grad setzen (Floating-Point-Modus).
+        Bleibt so lange fest, bis erneut gesetzt oder auto_phase()
+        aufgerufen wird - es gibt keine automatische Nachregelung."""
+        self._write(f"REFP. {phase_deg}")
+ 
+    def read_reference_phase(self):
+        """REFP.: liest die aktuell eingestellte Referenzphase in Grad."""
+        return float(self._query("REFP."))
+ 
+    def auto_phase(self, settle_s=None):
+        """AQN: Auto-Phase - dreht die Referenzphase so, dass das Signal
+        komplett in X liegt und Y minimal wird (X -> R, Y -> 0). Danach
+        wird - wie bei jeder Änderung, die die gefilterten Ausgänge
+        beeinflusst - eine kurze Einschwingzeit (5x Zeitkonstante)
+        abgewartet, bevor der neue Zustand als stabil gilt.
+        Gibt die neu eingestellte Referenzphase in Grad zurück."""
+        if settle_s is None:
+            try:
+                settle_s = 5 * self.read_time_constant_s()
+            except Exception:
+                settle_s = 1.0
+        self._write("AQN")
+        time.sleep(settle_s)
+        return self.read_reference_phase()
+
     def read_xy(self):
         """XY.: liefert (X, Y) in Volt als Float-Tupel."""
         response = self._query("XY.")
