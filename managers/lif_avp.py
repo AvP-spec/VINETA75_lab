@@ -1,4 +1,3 @@
-# \managers\lif_avp.py
 ####### TO DO:
 ##  stop progamm when the figure window is closed 
 ##  LIFManager or Plotter classes?
@@ -614,6 +613,7 @@ class LifeLIFPlotter(PlotStyler, TerminalColours):
     ## keys as resived from devises
     ALLOWED_WLM_KEYS = {"nm", "THz"}
     LOCKIN_KEY = "Magnitude_V"
+    PHASE_KEY = "Phase_deg"
     PIEZO_KEY = "piezo_v"
     TEMP_KEY = "temp_C"
 
@@ -623,15 +623,17 @@ class LifeLIFPlotter(PlotStyler, TerminalColours):
     }
 
     def __init__(self, max_points=100, 
-                 fig_size=(10, 8),
+                 fig_size=(10, 10),
                  pause_time=0.01, 
                  read_out_time=0.1,
-                 spec_line="Ar II"
+                 spec_line="Ar II",
+                 wl_tolerance=0.001, # [nm] +/- Toleranzband um die Referenzwellenlänge, None = aus
                  ):
         
         self.max_points = max_points
         self.spec_line = spec_line
         self.pause_time = pause_time 
+        self.wl_tolerance = wl_tolerance
         ## selection of the key is in self.update_lines()
         self.wlm_key = None
 
@@ -639,9 +641,10 @@ class LifeLIFPlotter(PlotStyler, TerminalColours):
 
         ## Setup Figure and Axes
         self.fig, (self.ax_lockin, 
+                   self.ax_phase,
                    self.ax_wlm, 
                    self.ax_piezo,
-                   self.ax_temp) = plt.subplots(4, 1, 
+                   self.ax_temp) = plt.subplots(5, 1, 
                                                  figsize=fig_size, 
                                                  sharex=True, 
                                                  constrained_layout=True
@@ -666,6 +669,15 @@ class LifeLIFPlotter(PlotStyler, TerminalColours):
                                                 linestyle='-',
                                                 linewidth=4,
                                                 )
+        self.line_phase, = self.ax_phase.plot([], [], color='tab:green',
+                                              label='Phase [deg]',
+                                              linestyle='-',
+                                              linewidth=2,
+                                              marker='o',
+                                              markerfacecolor='white',
+                                              markeredgecolor='tab:green',
+                                              markeredgewidth=1.5,
+                                              )
         self.line_wlm, = self.ax_wlm.plot([], [], color='tab:blue', 
                                           label='Wavelength',
                                           linestyle='-',
@@ -720,17 +732,19 @@ class LifeLIFPlotter(PlotStyler, TerminalColours):
         """Internal method to apply styling and add reference spectral lines."""
         self.ax_temp.set_xlabel("Relative Time [s]")
         self.ax_lockin.set_ylabel("Lock-in Signal [%]")
+        self.ax_phase.set_ylabel("Phase [°]")
         self.ax_wlm.set_ylabel("Wavelength")
         self.ax_piezo.set_ylabel("Piezo [V]")
         self.ax_temp.set_ylabel("Temperature [°C]")
 
         ## using PlotSyler method
         self.set_scale_steps(self.ax_lockin)
+        self.set_scale_steps(self.ax_phase)
         self.set_scale_steps(self.ax_wlm)
         self.set_scale_steps(self.ax_lockin)
         self.set_scale_steps(self.ax_temp)
 
-        for ax in [self.ax_lockin, self.ax_wlm, self.ax_piezo, self.ax_temp]:
+        for ax in [self.ax_lockin, self.ax_phase, self.ax_wlm, self.ax_piezo, self.ax_temp]:
             ax.grid(True, alpha=0.3)
             ax.legend(loc='upper right')
 
@@ -747,6 +761,21 @@ class LifeLIFPlotter(PlotStyler, TerminalColours):
                              color='gray', 
                              #fontsize=9
                              )
+
+            ## Toleranzband um die Referenzwellenlänge: schattierte Fläche
+            ## + dünne gestrichelte Randlinien. Wird in derselben Einheit
+            ## gezeichnet, in der target_wl in REFERENCE_LINES steht (nm).
+            ## Falls self.wlm_key später 'THz' wird, ist diese Toleranz
+            ## in nm nicht mehr direkt gültig - siehe Hinweis in __init__.
+            if self.wl_tolerance:
+                lower = target_wl - self.wl_tolerance
+                upper = target_wl + self.wl_tolerance
+                self.ax_wlm.axhspan(lower, upper, color='tab:green', alpha=0.15,
+                                     zorder=0, label=f"±{self.wl_tolerance} nm")
+                self.ax_wlm.axhline(lower, color='tab:green', linestyle='--',
+                                     linewidth=0.8, alpha=0.6)
+                self.ax_wlm.axhline(upper, color='tab:green', linestyle='--',
+                                     linewidth=0.8, alpha=0.6)
 
 
     def update_lines(self, data:dict):
@@ -773,6 +802,7 @@ class LifeLIFPlotter(PlotStyler, TerminalColours):
         ## set lines
         t = self.data_bufers.get('time_s')
         self.line_lockin.set_data(t, self.data_bufers[self.LOCKIN_KEY])
+        self.line_phase.set_data(t, self.data_bufers[self.PHASE_KEY])
         self.line_wlm.set_data(t, self.data_bufers[self.wlm_key])
         self.line_piezo.set_data(t, self.data_bufers[self.PIEZO_KEY])
         self.line_temp.set_data(t, self.data_bufers[self.TEMP_KEY])
@@ -784,7 +814,7 @@ class LifeLIFPlotter(PlotStyler, TerminalColours):
             self.ax_piezo.set_xlim(self.current_xlim - self.window_width, self.current_xlim)
         
         # autoscale for Y axes
-        for ax in [self.ax_lockin, self.ax_wlm, self.ax_piezo, self.ax_temp]:
+        for ax in [self.ax_lockin, self.ax_phase, self.ax_wlm, self.ax_piezo, self.ax_temp]:
             ax.relim()
             ax.autoscale_view(scalex=False) 
 
@@ -812,6 +842,7 @@ class LifeLIFPlotter(PlotStyler, TerminalColours):
         ## reset line data so old points disappear immediately, even
         ## before the next update_lines() call comes in
         self.line_lockin.set_data([], [])
+        self.line_phase.set_data([], [])
         self.line_wlm.set_data([], [])
         self.line_piezo.set_data([], [])
         self.line_temp.set_data([], [])
@@ -820,7 +851,7 @@ class LifeLIFPlotter(PlotStyler, TerminalColours):
         self.current_xlim = self.window_width
         self.ax_piezo.set_xlim(0, self.current_xlim)
 
-        for ax in [self.ax_lockin, self.ax_wlm, self.ax_piezo, self.ax_temp]:
+        for ax in [self.ax_lockin, self.ax_phase, self.ax_wlm, self.ax_piezo, self.ax_temp]:
             ax.relim()
             ax.autoscale_view(scalex=False)
 
@@ -948,12 +979,14 @@ if __name__ == "__main__":
                 
                 ## data generation
                 signal_val = 0.1 * np.random.random() + np.exp(-((current_time - 15)**2) / 10)
+                phase_val = 45.0 + 5.0 * np.sin(current_time * 0.3) + np.random.random()
                 wlm_val = 668.61379 + 0.0005 * np.sin(current_time * 0.5)
                 piezo_val = 2.0 + (i % 50) * 0.1
                 temp_val = 16.0 + 0.02 * np.sin(current_time * 0.1)
                 data = {
                     'time_s': current_time,
                     'Magnitude_V': signal_val,
+                    'Phase_deg': phase_val,
                     'nm' : wlm_val,
                     'piezo_v': piezo_val,
                     'temp_C': temp_val,
