@@ -76,6 +76,15 @@ class BaseDevice(TerminalColours):
         return self
 
 
+    def print_pyvisa_port_info(self):
+        resourses = self.rm.list_resources("?*")
+        for descriptor in resourses:
+            print(f"\nDescriptor: {descriptor}")
+            info = self.rm.resource_info(descriptor)
+            print('-'*50)
+            print(info)
+
+
     def _is_windows_serial_fake(self, port, silent=False)-> bool:
         """
         Queries Windows if the serial number of a device is generated or read from the hardware.
@@ -343,6 +352,7 @@ if __name__ == "__main__":
 
     dvc.print_com_info()
     dvc.print_connections()
+    dvc.print_pyvisa_port_info()
     # dvc.print_coulors()
 
     # resources = dvc.rm.list_resources()
