@@ -270,9 +270,9 @@ if __name__ == "__main__":
     # header, n_lines = read_file_header(filepath=file_path)
     # print(header)
 
-    df, header = read_file(filepath=file_path)
-    print(df.head())
-    print(header)
+    # df, header = read_file(filepath=file_path)
+    # print(df.head())
+    # print(header)
 
     # folder_path = select_folder()
     # print(folder_path)

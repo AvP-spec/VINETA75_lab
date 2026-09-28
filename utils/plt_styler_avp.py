@@ -1,4 +1,4 @@
-# \utils\plt_styler_avp-py
+# \utils\plt_styler_avp.py
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator, ScalarFormatter
 from PyQt6 import QtCore
